@@ -1,7 +1,8 @@
 from json import dump, load
 
 
-path = 'C:/Users/gavyn/Documents/Python/pyvpoke'
+# path = 'C:/Users/gavyn/Documents/Python/pyvpoke'
+path = 'C:/Users/gavyn/PycharmProjects/pyvpoke'
 NORMAL = 'normal'
 FIGHTING = 'fighting'
 FLYING = 'flying'

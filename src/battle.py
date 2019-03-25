@@ -45,6 +45,20 @@ def battle_all_shields(ally: Pokemon, enemy: Pokemon):
 
 
 if __name__ == '__main__':
-    charizard = Pokemon("Charizard", "Fire Spin", "Blast Burn", "Dragon Claw")
-    lapras = Pokemon("Lapras", "Water Gun", "Hydro Pump", "Surf")
-    print(battle_all_shields(charizard, lapras))
+    all_pokemon = (
+        Pokemon('Lapras', 'Water Gun', 'Surf', 'Dragon Pulse'),
+        Pokemon('Lucario', 'Counter', 'Power-Up Punch', 'Shadow Ball'),
+        Pokemon('Bastiodon', 'Smack Down', 'Stone Edge', 'Flamethrower'),
+        Pokemon('Sealeo', 'Water Gun', 'Body Slam', 'Water Pulse'),
+        Pokemon('Flygon', 'Mud Shot', 'Dragon Claw', 'Stone Edge'),
+        Pokemon('Walrein', 'Waterfall', 'Water Pulse', 'Earthquake'),
+        Pokemon('Steelix', 'Dragon Tail', 'Earthquake', 'Crunch'),
+        Pokemon('Alolan Marowak', 'Hex', 'Shadow Ball', 'Bone Club'),
+        Pokemon('Blaziken', 'Counter', 'Stone Edge', 'Brave Bird'),
+        Pokemon('Melmetal', 'Thunder Shock', 'Rock Slide', 'Flash Cannon')
+    )
+    for ally in all_pokemon:
+        results = []
+        for enemy in all_pokemon:
+            results.append(battle_all_shields(ally, enemy)[0])
+        print('\t'.join(str(result) for result in results))
