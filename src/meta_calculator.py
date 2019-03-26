@@ -1,30 +1,36 @@
-from src.gamemaster import path, GameMaster
+from src.gamemaster import path, GameMaster, banned
 from tinydb import TinyDB, Query
+from math import inf
 
 
-def calculate_meta(db: TinyDB, table_name: str):
-    sim_table = db.table(table_name)
+def calculate_meta():
+    db = TinyDB(f"{path}/data/databases/kingdom.json")
+    sim_table = db.table('battle_results')
+    db.purge_table('meta')
     meta_table = db.table('meta')
     matrix = {}
     query = Query()
-    gm = GameMaster()
-
-    for ally in gm.iter_pokemon_move_set_combos(['ice', 'flying', 'electric', 'ground']):
-        ally_string = ', '.join(ally)
-        matrix[ally_string] = {'column': 0}
-        # for record in sim_table.search(query.ally == ally_string):
-        #     matrix[ally_string][record['enemy']] = record['result']
 
     print("Querying data...")
 
-    for record in sim_table.search(query.ally.exists()):
-        matrix[record['ally']][record['enemy']] = record['result']
+    for record in sim_table.search(query.result.exists()):
+        ally, enemy = record['pokemon']
+        results = record['result']
+        if ally not in matrix:
+            matrix[ally] = {}
+        if enemy not in matrix:
+            matrix[enemy] = {}
+        matrix[ally][enemy] = results[0]
+        matrix[enemy][ally] = results[1]
 
     print("Matrix filled, analyzing data...")
 
     for ally in matrix:
+        column = 0
         for enemy in matrix:
-            matrix[ally]['column'] += matrix[enemy][ally]
+            column += matrix[enemy][ally]
+        matrix[ally]['column'] = column
+
     total = 0
     for ally in matrix:
         row = 0
@@ -42,28 +48,39 @@ def calculate_meta(db: TinyDB, table_name: str):
         db_results.append({'name': result[1], 'score': result[0]})
     print("Writing data to database...")
     meta_table.insert_multiple(db_results)
-    return results
+    db.close()
 
 
-def top_pokemon(table, banned, pokemon_num):
+def top_pokemon(banned: tuple, pokemon_num: int = None):
     data = []
     query = Query()
+    db = TinyDB(f"{path}/data/databases/tempest.json")
+    table = db.table('meta')
     for record in table.search(query.name.exists()):
         data.append((record['score'], record['name']))
+    db.close()
     data.sort(reverse=True)
     to_return = []
     i = 0
     j = 0
     used = []
-    while i < 20:
-        name = data[j][1].split(', ')[0]
+    min_rank = inf
+    max_rank = 0
+    if pokemon_num is None:
+        pokemon_num = len(data)
+    while j < pokemon_num:
+        name, fast_attack, charge_1, charge_2 = data[j][1].split(', ')
         if name in banned or name in used:
             j += 1
             continue
-        to_return.append(data[j])
+        to_return.append([data[j][0], name, fast_attack, charge_1, charge_2])
+        min_rank = min(min_rank, data[j][0])
+        max_rank = max(max_rank, data[j][0])
         used.append(name)
         j += 1
         i += 1
+    for record in to_return:
+        record[0] = scale_ranking(record[0], min_rank, max_rank)
     return to_return[:pokemon_num]
 
 
@@ -83,10 +100,12 @@ def rank_of_pokemon(name):
         i += 1
 
 
+def scale_ranking(rank, min_rank, max_rank):
+    return round((rank - min_rank) * 100 / (max_rank - min_rank))
+
+
 if __name__ == '__main__':
-    db = TinyDB(f"{path}/data/databases/kingdom.json")
-    db.purge_table('meta')
-    table = db.table('meta')
-    calculate_meta(db, 'battle_result')
-    db.close()
-    # print(rank_of_pokemon('Combusken'))
+    # calculate_meta()
+    top_mons = top_pokemon(banned)
+    for mon in top_mons:
+        print(f"{mon[0]}: {', '.join(mon[1:])}")

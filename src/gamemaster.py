@@ -21,6 +21,8 @@ ICE = 'ice'
 DRAGON = 'dragon'
 DARK = 'dark'
 FAIRY = 'fairy'
+banned = ('Mewtwo', 'Griatina (Altered Forme)', 'Groudon', 'Kygore', 'Rayquaza', 'Garchomp', 'Latios', 'Latias',
+          'Palkia', 'Dialga', 'Heatran', 'Giratina (Origin Forme)', 'jirachi')
 
 
 class GameMaster:

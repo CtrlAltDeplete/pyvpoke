@@ -29,6 +29,10 @@ def battle(ally: Pokemon, enemy: Pokemon, shields: int):
     enemy_rating = 2 if ally.starting_shields == 0 else 2 * ally.get_shields() / ally.starting_shields
     ally_rating += 5 * (enemy.starting_health - enemy.get_health()) / enemy.starting_health
     enemy_rating += 5 * (ally.starting_health - ally.get_health()) / ally.starting_health
+    if ally.get_health() > 0:
+        ally_rating += 2 * ally.energy / 100
+    if enemy.get_health() > 0:
+        enemy_rating += 2 * enemy.energy / 100
 
     total_rating = ally_rating + enemy_rating
 

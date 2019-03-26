@@ -262,5 +262,4 @@ class Pokemon:
 
 
 if __name__ == '__main__':
-    charizard = Pokemon('Charizard', 'Fire Spin', 'Blast Burn', 'Dragon Claw')
-    lucario = Pokemon('Lucario', 'Counter', 'Power-Up Punch', 'Close Combat')
+    bulbasaur = Pokemon('Ivysaur', 'Vine Whip', 'Power Whip', 'Solar Beam')
