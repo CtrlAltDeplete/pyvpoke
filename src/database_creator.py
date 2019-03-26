@@ -29,7 +29,7 @@ def main():
     start_time = time()
     gm = GameMaster()
 
-    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(['electric', 'ice', 'flying', 'ground']))
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(['fire', 'steel', 'dragon', 'ice']))
 
     print("Creating Processes...")
     num_processes = 16
