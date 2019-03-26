@@ -20,6 +20,15 @@ class Pokemon:
             else:
                 self.cooldown = 0
                 self.energy *= -1
+            self.applied_buff = (0, 0)
+            if self.name == 'Power-Up Punch':
+                self.applied_buff = (0.25, 0)
+
+        def apply_buff(self, user):
+            if user.buff_count < 4 and self.applied_buff != (0, 0):
+                user.buffs[0] += self.applied_buff[0]
+                user.buffs[1] += self.applied_buff[1]
+                user.buff_count += 1
 
         def get_damage(self, user, enemy):
             return math.floor(self.power * enemy.get_effectiveness(self.type) * 0.5 * 1.3 * user.get_attack() / enemy.get_defense()) + 1
@@ -64,6 +73,8 @@ class Pokemon:
         self.energy = 0
         self.cooldown = 0
         self.shields = 0
+        self.buff_count = 0
+        self.buffs = [1, 1]
         self.initialize()
 
     def calculate_CP(self, cpm, atkIV, defIV, hpIV):
@@ -238,16 +249,17 @@ class Pokemon:
             self.energy = min(100, self.energy)
 
         enemy.hp = max(0, enemy.hp - damage)
+        move.apply_buff(self)
 
     def get_attack(self):
-        return self.stats['atk']
+        return self.stats['atk'] * self.buffs[0]
 
     def get_defense(self):
-        return self.stats['def']
+        return self.stats['def'] * self.buffs[1]
 
     def __str__(self):
         return f"{self.name}, {self.fast_move}, {', '.join((str(move) for move in self.charge_move_pool))}"
 
 
 if __name__ == '__main__':
-    charizard = Pokemon('Charizard', 'Fire Spin', 'Blast Burn', 'Dragon Claw')
+    bulbasaur = Pokemon('Ivysaur', 'Vine Whip', 'Power Whip', 'Solar Beam')
