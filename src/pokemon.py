@@ -95,7 +95,7 @@ class Pokemon:
                         if cp <= 1500:
                             atk_stat = cpm * (self.base_stats['atk'] + atkIV)
                             def_stat = cpm * (self.base_stats['def'] + defIV)
-                            hp_stat = cpm * (self.base_stats['hp'] + hpIV)
+                            hp_stat = math.floor(cpm * (self.base_stats['hp'] + hpIV))
                             overall = hp_stat * atk_stat * def_stat / 1000
                             options.append((overall, level / 2, atkIV, defIV, hpIV))
         if options:
@@ -262,4 +262,4 @@ class Pokemon:
 
 
 if __name__ == '__main__':
-    bulbasaur = Pokemon('Ivysaur', 'Vine Whip', 'Power Whip', 'Solar Beam')
+    ivysaur = Pokemon('Ivysaur', 'Vine Whip', 'Power Whip', 'Solar Beam')

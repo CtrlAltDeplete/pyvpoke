@@ -1,8 +1,8 @@
 from json import dump, load
 
 
-# path = 'C:/Users/gavyn/Documents/Python/pyvpoke'
-path = 'C:/Users/gavyn/PycharmProjects/pyvpoke'
+path = 'C:/Users/gavyn/Documents/Python/pyvpoke'
+# path = 'C:/Users/gavyn/PycharmProjects/pyvpoke'
 NORMAL = 'normal'
 FIGHTING = 'fighting'
 FLYING = 'flying'
@@ -23,6 +23,26 @@ DARK = 'dark'
 FAIRY = 'fairy'
 banned = ('Mewtwo', 'Giratina (Altered Forme)', 'Groudon', 'Kygore', 'Rayquaza', 'Garchomp', 'Latios', 'Latias',
           'Palkia', 'Dialga', 'Heatran', 'Giratina (Origin Forme)', 'Jirachi')
+type_to_color = {
+    NORMAL: "A8A77A",
+    FIGHTING: "C22E28",
+    FLYING: "A98FF3",
+    POISON: "A33EA1",
+    GROUND: "E2BF65",
+    ROCK: "B6A136",
+    BUG: "A6B91A",
+    GHOST: "735797",
+    STEEL: "B7B7CE",
+    FIRE: "EE8130",
+    WATER: "6390F0",
+    GRASS: "7AC74C",
+    ELECTRIC: "F7D02C",
+    PSYCHIC: "F95587",
+    ICE: "96D9D6",
+    DRAGON: "6F35FC",
+    DARK: "705746",
+    FAIRY: "D685AD"
+}
 
 
 class GameMaster:
