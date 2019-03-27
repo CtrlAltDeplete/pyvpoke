@@ -220,7 +220,7 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 if __name__ == '__main__':
-    cup = 'kingdom'
+    cup = 'tempest'
     calculate_in_depth_meta(cup)
     # top_mons = top_pokemon_in_depth(cup)
     # for mon in top_mons:
