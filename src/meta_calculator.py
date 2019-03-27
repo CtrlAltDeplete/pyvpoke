@@ -3,11 +3,12 @@ from tinydb import TinyDB, Query
 from math import inf
 
 
-def calculate_meta():
-    db = TinyDB(f"{path}/data/databases/kingdom.json")
+def calculate_meta(cup: str, purge: bool = False):
+    db = TinyDB(f"{path}/data/databases/{cup}.json")
     sim_table = db.table('battle_results')
-    db.purge_table('meta2')
-    meta_table = db.table('meta2')
+    if purge:
+        db.purge_table('meta')
+    meta_table = db.table('meta')
     matrix = {}
     query = Query()
 
@@ -20,12 +21,27 @@ def calculate_meta():
             matrix[ally] = {}
         if enemy not in matrix:
             matrix[enemy] = {}
-        diff = max(abs(results[1] - results[0]), 1) ** 2
-        matrix[ally][enemy] = results[0] * diff if results[0] > results[1] else results[0] / diff
-        matrix[enemy][ally] = results[1] * diff if results[1] > results[0] else results[1] / diff
+        matrix[ally][enemy] = results[0]
+        matrix[enemy][ally] = results[1]
 
     print("Matrix filled, analyzing data...")
+    matrix = weight_matrix(matrix)
 
+    results = [(value, key) for key, value in matrix.items()]
+    results.sort(reverse=True)
+    db_results = []
+    for result in results:
+        db_results.append({'name': result[1], 'score': result[0]})
+    print("Writing data to database...")
+    meta_table.insert_multiple(db_results)
+    db.close()
+
+
+def calculate_in_depth_meta(cup: str):
+    pass
+
+
+def weight_matrix(matrix: dict):
     for ally in matrix:
         column = 0
         for enemy in matrix:
@@ -42,20 +58,13 @@ def calculate_meta():
         total += row
     for ally in matrix:
         matrix[ally] = round(matrix[ally]['row'] * 100 / total, 4)
-    results = [(value, key) for key, value in matrix.items()]
-    results.sort(reverse=True)
-    db_results = []
-    for result in results:
-        db_results.append({'name': result[1], 'score': result[0]})
-    print("Writing data to database...")
-    meta_table.insert_multiple(db_results)
-    db.close()
+    return matrix
 
 
-def top_pokemon(banned: tuple, pokemon_num: int = None):
+def top_pokemon(banned: tuple, cup: str, pokemon_num: int = None):
     data = []
     query = Query()
-    db = TinyDB(f"{path}/data/databases/kingdom.json")
+    db = TinyDB(f"{path}/data/databases/{cup}.json")
     table = db.table('meta')
     for record in table.search(query.name.exists()):
         data.append((record['score'], record['name']))
@@ -85,8 +94,8 @@ def top_pokemon(banned: tuple, pokemon_num: int = None):
     return to_return[:pokemon_num]
 
 
-def rank_of_pokemon(name):
-    db = TinyDB(f"{path}/data/databases/kingdom.json")
+def rank_of_pokemon(name: str, cup: str):
+    db = TinyDB(f"{path}/data/databases/{cup}.json")
     table = db.table('meta2')
     data = []
     query = Query()
@@ -106,9 +115,10 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 if __name__ == '__main__':
-    calculate_meta()
-    top_mons = top_pokemon(banned)
+    cup = 'tempest'
+    calculate_meta(cup)
+    top_mons = top_pokemon(banned, cup)
     for mon in top_mons:
         print(f"{mon[0]}: {', '.join(mon[1:])}")
-    with open(f'{path}/data/kingdom_rankings_2.csv', 'w') as f:
+    with open(f'{path}/data/{cup}_rankings.csv', 'w') as f:
         f.write('\n'.join([','.join([str(y) for y in x]) for x in top_mons]))

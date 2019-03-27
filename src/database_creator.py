@@ -66,5 +66,5 @@ def main(type_restrictions: tuple, cup_name: str):
 
 
 if __name__ == '__main__':
-    main(('fire', 'ice', 'steel', 'dragon'), 'kingdom')
+    # main(('fire', 'ice', 'steel', 'dragon'), 'kingdom')
     main(('electric', 'flying', 'ground', 'electric'), 'tempest')
