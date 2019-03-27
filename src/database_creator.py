@@ -25,11 +25,11 @@ def fill_table_for_pokemon(pokemon_indices, all_pokemon, return_list):
                 print(f"Thread {pokemon_indices[0]}: {previous_percent}% complete.")
 
 
-def main():
+def main(type_restrictions: tuple, cup_name: str):
     start_time = time()
     gm = GameMaster()
 
-    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(['fire', 'steel', 'dragon', 'ice']))
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(type_restrictions))
 
     print("Creating Processes...")
     num_processes = 16
@@ -52,7 +52,7 @@ def main():
     for proc in jobs:
         proc.join()
 
-    db = TinyDB(f"{path}/data/databases/kingdom.json")
+    db = TinyDB(f"{path}/data/databases/{cup_name}.json")
     table = db.table('battle_results')
 
     table.insert_multiple(return_list)
@@ -66,4 +66,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(('fire', 'ice', 'steel', 'dragon'), 'kingdom')
+    main(('electric', 'flying', 'ground', 'electric'), 'tempest')

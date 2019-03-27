@@ -6,8 +6,8 @@ from math import inf
 def calculate_meta():
     db = TinyDB(f"{path}/data/databases/kingdom.json")
     sim_table = db.table('battle_results')
-    db.purge_table('meta')
-    meta_table = db.table('meta')
+    db.purge_table('meta2')
+    meta_table = db.table('meta2')
     matrix = {}
     query = Query()
 
@@ -20,8 +20,9 @@ def calculate_meta():
             matrix[ally] = {}
         if enemy not in matrix:
             matrix[enemy] = {}
-        matrix[ally][enemy] = results[0]
-        matrix[enemy][ally] = results[1]
+        diff = max(abs(results[1] - results[0]), 1) ** 2
+        matrix[ally][enemy] = results[0] * diff if results[0] > results[1] else results[0] / diff
+        matrix[enemy][ally] = results[1] * diff if results[1] > results[0] else results[1] / diff
 
     print("Matrix filled, analyzing data...")
 
@@ -54,7 +55,7 @@ def calculate_meta():
 def top_pokemon(banned: tuple, pokemon_num: int = None):
     data = []
     query = Query()
-    db = TinyDB(f"{path}/data/databases/tempest.json")
+    db = TinyDB(f"{path}/data/databases/kingdom.json")
     table = db.table('meta')
     for record in table.search(query.name.exists()):
         data.append((record['score'], record['name']))
@@ -86,7 +87,7 @@ def top_pokemon(banned: tuple, pokemon_num: int = None):
 
 def rank_of_pokemon(name):
     db = TinyDB(f"{path}/data/databases/kingdom.json")
-    table = db.table('meta')
+    table = db.table('meta2')
     data = []
     query = Query()
     for record in table.search(query.name.exists()):
@@ -105,7 +106,9 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 if __name__ == '__main__':
-    # calculate_meta()
+    calculate_meta()
     top_mons = top_pokemon(banned)
     for mon in top_mons:
         print(f"{mon[0]}: {', '.join(mon[1:])}")
+    with open(f'{path}/data/kingdom_rankings_2.csv', 'w') as f:
+        f.write('\n'.join([','.join([str(y) for y in x]) for x in top_mons]))
