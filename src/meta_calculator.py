@@ -3,44 +3,11 @@ from tinydb import TinyDB, Query
 from math import inf
 
 
-def calculate_meta(cup: str, purge: bool = False):
+def calculate_meta(cup: str):
     db = TinyDB(f"{path}/data/databases/{cup}.json")
     sim_table = db.table('battle_results')
-    if purge:
-        db.purge_table('meta')
+    db.purge_table('meta')
     meta_table = db.table('meta')
-    matrix = {}
-    query = Query()
-
-    print("Querying data...")
-
-    for record in sim_table.search(query.result.exists()):
-        ally, enemy = record['pokemon']
-        results = record['result']
-        if ally not in matrix:
-            matrix[ally] = {}
-        if enemy not in matrix:
-            matrix[enemy] = {}
-        matrix[ally][enemy] = results[0]
-        matrix[enemy][ally] = results[1]
-
-    print("Matrix filled, analyzing data...")
-    matrix = weight_matrix(matrix)
-
-    results = [(value, key) for key, value in matrix.items()]
-    results.sort(reverse=True)
-    db_results = []
-    for result in results:
-        db_results.append({'name': result[1], 'score': result[0]})
-    print("Writing data to database...")
-    meta_table.insert_multiple(db_results)
-    db.close()
-
-
-def calculate_in_depth_meta(cup: str):
-    db = TinyDB(f"{path}/data/databases/{cup}.json")
-    sim_table = db.table('battle_results')
-    meta_table = db.table('in_depth_meta')
     matrix = {}
     query = Query()
 
@@ -74,7 +41,7 @@ def calculate_in_depth_meta(cup: str):
     while current_rank > 0:
         matrix, to_remove = weight_matrix_with_removals(matrix)
         for pokemon in to_remove:
-            rankings[pokemon] = current_rank
+            rankings[pokemon] = {"absolute_rank": current_rank}
             matrix.pop(pokemon, None)
             for pokemon2 in matrix:
                 matrix[pokemon2].pop(pokemon, None)
@@ -82,45 +49,54 @@ def calculate_in_depth_meta(cup: str):
 
     print("Data analyzed, writing to database...")
 
-    filtered_rankings = {}
+    r = 1
+    for i in range(len(rankings)):
+        for pokemon in rankings:
+            if rankings[pokemon]['absolute_rank'] == i and 'relative_rank' not in rankings[pokemon]:
+                rankings[pokemon]['relative_rank'] = r
+                r += 1
+                for pokemon2 in rankings:
+                    if pokemon.split(', ')[0] in pokemon2 and not pokemon2 == pokemon:
+                        rankings[pokemon2]['relative_rank'] = 0
+
     for pokemon in rankings:
-        pokemon_name, fast_move, charge_move_1, charge_move_2 = pokemon.split(', ')
-        rank = rankings[pokemon]
-        if pokemon_name not in filtered_rankings:
-            filtered_rankings[pokemon_name] = {'name': pokemon_name, 'rank': inf, 'movesets': []}
-        filtered_rankings[pokemon_name]['rank'] = min(filtered_rankings[pokemon_name]['rank'], rank)
-        filtered_rankings[pokemon_name]['movesets'].append([rank, fast_move, charge_move_1, charge_move_2])
+        rankings[pokemon]['absolute_rank'] *= 100 / (len(rankings) - 1)
+        rankings[pokemon]['absolute_rank'] = round(rankings[pokemon]['absolute_rank'], 1)
+        name, fast, charge_1, charge_2 = pokemon.split(', ')
+        rankings[pokemon]['name'] = name
+        rankings[pokemon]['fast'] = fast
+        rankings[pokemon]['charge_1'] = charge_1
+        rankings[pokemon]['charge_2'] = charge_2
 
-    to_write = []
-    for pokemon in filtered_rankings:
-        movesets = filtered_rankings[pokemon]['movesets']
-        movesets.sort()
-        for i in range(len(movesets)):
-            movesets[i][0] = i + 1
-        filtered_rankings[pokemon]['movesets'] = movesets
-        to_write.append(filtered_rankings[pokemon])
+    rankings = [rankings[k] for k in rankings]
 
-    meta_table.insert_multiple(to_write)
+    meta_table.insert_multiple(rankings)
     db.close()
 
 
-def weight_matrix(matrix: dict):
-    for ally in matrix:
-        column = 0
-        for enemy in matrix:
-            column += matrix[enemy][ally]
-        matrix[ally]['column'] = column
-
-    total = 0
-    for ally in matrix:
-        row = 0
-        for enemy in matrix:
-            row += matrix[ally][enemy] / matrix[ally]['column']
-        matrix[ally]['row'] = row
-        total += row
-    for ally in matrix:
-        matrix[ally] = round(matrix[ally]['row'] * 100 / total, 4)
-    return matrix
+# def fill_card_info(cup: str, pokemon: str, fast: str, charge_1: str, charge_2: str):
+#     ordered_pokemon = ordered_top_pokemon(cup)
+#     db = TinyDB(f"{path}/data/databases/{cup}.json")
+#     sim_table = db.table('battle_results')
+#     win_against = []
+#     lose_against = []
+#     i = 0
+#     query = Query()
+#     while len(win_against) < 18 and len(lose_against) < 18:
+#         ally = ', '.join([pokemon, fast, charge_1, charge_2])
+#         enemy = ', '.join([ordered_pokemon[i]['name'], ordered_pokemon[i]['fast'], ordered_pokemon[i]['charge_1'], ordered_pokemon[i]['charge_2']])
+#         battle = sim_table.search(query.pokemon == [ally, enemy])
+#         if battle:
+#             win = battle[0]['result'][0] > battle[0]['result'][1]
+#         else:
+#             battle = sim_table.search(query.pokemon == [enemy, ally])
+#             win = battle[0]['result'][0] < battle[0]['result'][1]
+#         if win and len(win_against) < 18:
+#             win_against.append(ordered_pokemon[i]['name'])
+#         elif not win and len(lose_against) < 18:
+#             lose_against.append(ordered_pokemon[i]['name'])
+#     db.close()
+#     return {'name': pokemon, 'fast': fast, 'charge_1': charge_1, 'charge_2': charge_2, 'win': win_against, 'lose': lose_against}
 
 
 def weight_matrix_with_removals(matrix: dict):
@@ -153,66 +129,24 @@ def weight_matrix_with_removals(matrix: dict):
     return matrix, to_remove
 
 
-def top_pokemon(banned: tuple, cup: str, pokemon_num: int = None):
-    data = []
+def ordered_top_pokemon(cup: str):
     query = Query()
     db = TinyDB(f"{path}/data/databases/{cup}.json")
     table = db.table('meta')
-    for record in table.search(query.name.exists()):
-        data.append((record['score'], record['name']))
+    data = table.search(query.relative_rank != 0)
     db.close()
-    data.sort(reverse=True)
-    to_return = []
-    i = 0
-    j = 0
-    used = []
-    min_rank = inf
-    max_rank = 0
-    if pokemon_num is None:
-        pokemon_num = len(data)
-    while j < pokemon_num:
-        name, fast_attack, charge_1, charge_2 = data[j][1].split(', ')
-        if name in banned or name in used:
-            j += 1
-            continue
-        to_return.append([data[j][0], name, fast_attack, charge_1, charge_2])
-        min_rank = min(min_rank, data[j][0])
-        max_rank = max(max_rank, data[j][0])
-        used.append(name)
-        j += 1
-        i += 1
-    for record in to_return:
-        record[0] = scale_ranking(record[0], min_rank, max_rank)
-    return to_return[:pokemon_num]
+    data.sort(key=lambda k: k['relative_rank'])
+    return data
 
 
-def top_pokemon_in_depth(cup: str, pokemon_num: int = None):
-    data = []
+def ordered_movesets_for_pokemon(cup: str, pokemon: str):
     query = Query()
-    db = TinyDB(F"{path}/data/databases/{cup}.json")
-    table = db.table('in_depth_meta')
-    for record in table.search(query.name.exists()):
-        data.append((record['rank'], record['name'], record['movesets'][0][1], record['movesets'][0][2], record['movesets'][0][3]))
-    data.sort()
-    if pokemon_num is None:
-        pokemon_num = len(data)
-    return data[:pokemon_num]
-
-
-def rank_of_pokemon(name: str, cup: str):
     db = TinyDB(f"{path}/data/databases/{cup}.json")
-    table = db.table('meta2')
-    data = []
-    query = Query()
-    for record in table.search(query.name.exists()):
-        data.append((record['score'], record['name']))
-    db.close()
-    data.sort(reverse=True)
-    i = 1
-    for datum in data:
-        if name in datum[1]:
-            return datum, i
-        i += 1
+    table = db.table('meta')
+    data = table.search(query.name == pokemon)
+    data = [(d['absolute_rank'], d['fast'], d['charge_1'], d['charge_2']) for d in data]
+    data.sort(key=lambda k: k[0])
+    return data
 
 
 def scale_ranking(rank, min_rank, max_rank):
@@ -220,10 +154,4 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 if __name__ == '__main__':
-    cup = 'tempest'
-    calculate_in_depth_meta(cup)
-    # top_mons = top_pokemon_in_depth(cup)
-    # for mon in top_mons:
-    #     print(f"{mon[0]}: {', '.join(mon[1:])}")
-    # with open(f'{path}/data/{cup}_rankings.csv', 'w') as f:
-    #     f.write('\n'.join([','.join([str(y) for y in x]) for x in top_mons]))
+    calculate_meta('boulder')

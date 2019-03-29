@@ -1,22 +1,40 @@
 from src.gamemaster import path, GameMaster
-from src.meta_calculator import top_pokemon_in_depth
+from src.meta_calculator import ordered_top_pokemon, ordered_movesets_for_pokemon
 
 
-def create_ranking_table(cup: str, cup_types: list, save_name: str):
-    tr_template = '<li style="border-bottom: 0px; padding: 2px 16px;"><div class="w3-row-padding w3-round-xlarge pokemon-ranking {}"><div class="w3-col s1">#{}</div><div class="w3-col s10">{}</div><div class="w3-col s1">{}</div></div></li>'
-    formatted_trs = []
-    gm = GameMaster()
-    i = 1
-    cup_pokemon = top_pokemon_in_depth(cup)
-    max_rank = max([x[0] for x in cup_pokemon])
-    for ranking in top_pokemon_in_depth(cup):
-        types = gm.get_pokemon(ranking[1])['types']
-        color = types[0] if types[0] in cup_types else types[1]
-        formatted_trs.append(tr_template.format(color, i, ranking[1], round(100 - 100 * (ranking[0] - 1) / max_rank, 1)))
-        i += 1
+with open(f"{path}/data/move_template.html") as f:
+    move_template = f.read()
+with open(f"{path}/data/list_item_template.html") as f:
+    listing_template = f.read()
+gm = GameMaster()
+
+
+def create_ranking_table(cup: str, save_name: str):
+    list_items = []
+    for pokemon in ordered_top_pokemon(cup):
+        name = pokemon['name']
+        rank = pokemon['relative_rank']
+        percentile = round(100 - pokemon['absolute_rank'], 0)
+        moves = ordered_movesets_for_pokemon(cup, name)
+        moves_html = []
+        for moveset in moves:
+            moves_html.append(fill_move_template(name, moveset, cup))
+        moves_html = "\n".join(moves_html)
+        list_items.append(listing_template.format(name, name, rank, name, percentile, percentile, name, moves_html))
+    list_items = "\n".join(list_items)
     with open(save_name, 'w') as f:
-        f.write('\n'.join(formatted_trs))
+        f.write(list_items)
+
+
+def fill_move_template(pokemon_name: str, move_info: tuple, cup: str):
+    absolute_rank, fast_name, charge_1_name, charge_2_name = move_info
+    fast_type = gm.get_move(fast_name)['type']
+    charge_1_type = gm.get_move(charge_1_name)['type']
+    charge_2_type = gm.get_move(charge_2_name)['type']
+    card_address = f"{cup}+{pokemon_name}+{fast_type}+{charge_1_name}+{charge_2_name}".replace("♂", "(Male)").replace("♀", "(Female)")
+    return move_template.format(round(100 - absolute_rank, 0), fast_type, fast_name, charge_1_type, charge_1_name,
+                                charge_2_type, charge_2_name, card_address)
 
 
 if __name__ == '__main__':
-    create_ranking_table('tempest', ['flying', 'ice', 'electric', 'ground'], f'{path}/tempest.html')
+    create_ranking_table('boulder', f'{path}/boulder.html')
