@@ -262,4 +262,4 @@ class Pokemon:
 
 
 if __name__ == '__main__':
-    ivysaur = Pokemon('Ivysaur', 'Vine Whip', 'Power Whip', 'Solar Beam')
+    bulbasaur = Pokemon('Bulbasaur', 'Vine Whip', 'Power Whip', 'Solar Beam')
