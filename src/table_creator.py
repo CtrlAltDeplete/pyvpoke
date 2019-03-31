@@ -15,7 +15,7 @@ def create_ranking_table(cup: str, save_name: str):
     for pokemon in ordered_top_pokemon(cup):
         name = pokemon['name']
         rank = pokemon['relative_rank']
-        percentile = round(101 - pokemon['absolute_rank'], 1)
+        percentile = round(100 - pokemon['absolute_rank'], 1)
         moves = ordered_movesets_for_pokemon(cup, name)
         moves_html = []
         for moveset in moves:

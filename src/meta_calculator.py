@@ -62,7 +62,7 @@ def calculate_meta(cup: str):
                         rankings[pokemon2]['relative_rank'] = 0
 
     for pokemon in rankings:
-        rankings[pokemon]['absolute_rank'] = round(rankings[pokemon]['absolute_rank'] * 100.0 / len(rankings), 1)
+        rankings[pokemon]['absolute_rank'] *= 100 / float(len(rankings))
         name, fast, charge_1, charge_2 = pokemon.split(', ')
         rankings[pokemon]['name'] = name
         rankings[pokemon]['fast'] = fast

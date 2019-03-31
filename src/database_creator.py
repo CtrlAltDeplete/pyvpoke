@@ -25,6 +25,23 @@ def fill_table_for_pokemon(pokemon_indices, all_pokemon, return_list):
                 print(f"Thread {pokemon_indices[0]}: {previous_percent}% complete.")
 
 
+def add_pokemon_move(cup_name: str, type_restrictions: tuple, pokemon: str, move_name: str):
+    gm = GameMaster()
+    all_possibilites = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(type_restrictions))
+
+    indices_list = []
+    for i in range(len(all_possibilites)):
+        if pokemon in all_possibilites[i] and move_name in all_possibilites[i]:
+            indices_list.append(i)
+    to_write = []
+    fill_table_for_pokemon(indices_list, all_possibilites, to_write)
+    db = TinyDB(f"{path}/data/databases/{cup_name}.json")
+    table = db.table('battle_results')
+    table.insert_multiple(to_write)
+    db.close()
+    print(f"Finished {pokemon} with {move_name}.")
+
+
 def main(type_restrictions: tuple, cup_name: str):
     start_time = time()
     gm = GameMaster()
@@ -32,7 +49,7 @@ def main(type_restrictions: tuple, cup_name: str):
     all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(type_restrictions))
 
     print("Creating Processes...")
-    num_processes = 16
+    num_processes = 10
     indices_lists = []
     for i in range(num_processes):
         indices_lists.append([])
@@ -66,5 +83,56 @@ def main(type_restrictions: tuple, cup_name: str):
 
 
 if __name__ == '__main__':
-    # main(('fire', 'ice', 'steel', 'dragon'), 'kingdom')
-    main(('electric', 'flying', 'ground', 'electric'), 'tempest')
+    cups_and_restrictions = (
+        ('boulder', ('rock', 'steel', 'ground', 'fighting')),
+        ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
+        ('tempset', ('ground', 'ice', 'electric', 'flying')),
+        ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
+    )
+    moves_to_add = (
+        ('Alakazam', 'Dazzling Gleam', 'charge'),
+        ('Alakazam', 'Psychic', 'charge'),
+        ('Ampharos', 'Dragon Pulse', 'charge'),
+        ('Arcanine', 'Bite', 'fast'),
+        ('Arcanine', 'Bulldoze', 'charge'),
+        ('Arcanine', 'Flamethrower', 'charge'),
+        ('Articuno', 'Hurricane', 'charge'),
+        ('Beedrill', 'Bug Bite', 'fast'),
+        ('Blastoise', 'Hydro Cannon', 'charge'),
+        ('Blaziken', 'Stone Edge', 'charge'),
+        ('Breloom', 'Grass Knot', 'charge'),
+        ('Butterfree', 'Bug Bite', 'fast'),
+        ('Chansey', 'Psybeam', 'charge'),
+        ('Charizard', 'Ember', 'fast'),
+        ('Charizard', 'Wing Attack', 'fast'),
+        ('Charizard', 'Flamethrower', 'charge'),
+        ('Charizard', 'Blast Burn', 'charge'),
+        ('Charmeleon', 'Scratch', 'fast'),
+        ('Clefable', 'Pound', 'fast'),
+        ('Cleffa', 'Psychic', 'charge'),
+        ('Cleffa', 'Body Slam', 'charge'),
+        ('Cloyster', 'Blizzard', 'charge'),
+        ('Cloyster', 'Icy Wind', 'charge'),
+        ('Delibird', 'Ice Shard', 'fast'),
+        ('Delibird', 'Quick Attack', 'fast'),
+        ('Dewgong', 'Ice Shard', 'fast'),
+        ('Dewgong', 'Aqua Jet', 'charge'),
+        ('Dewgong', 'Icy Wind', 'charge'),
+        ('Diglett', 'Mud Shot', 'fast'),
+        ('Dodrio', 'Air Cutter', 'charge'),
+        ('Doduo', 'Swift', 'charge'),
+        ('Dragonite', 'Dragon Breath', 'fast'),
+        ('Dragonite', 'Dragon Claw', 'charge'),
+        ('Dragonite', 'Dragon Pulse', 'charge'),
+        ('Dragonite', 'Draco Meteor', 'charge'),
+        ('Dugtrio', 'Mud Shot', 'fast'),
+        ('Eevee', 'Body Slam', 'charge'),
+        ('Eevee', 'Last Resort', 'charge'),
+        ('Ekans', 'Gunk Shot', 'charge'),
+        ('Electrode', 'Tackle', 'fast'),
+        ('Elekid', 'Thunderbolt', 'charge'),
+        ('Espeon', 'Last Resort', 'charge'),
+        ('Exeggutor', 'Confusion', 'fast'),
+        ('Exeggutor', 'Zen Headbutt', 'fast'),
+        ('Farfetch\'d', 'Cut', 'fast')
+    )
