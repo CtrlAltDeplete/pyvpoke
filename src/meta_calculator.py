@@ -1,6 +1,8 @@
 from src.gamemaster import path, banned, GameMaster
 from tinydb import TinyDB, Query
 from math import inf
+from multiprocessing import Process
+from copy import deepcopy
 
 
 def calculate_meta(cup: str):
@@ -56,12 +58,11 @@ def calculate_meta(cup: str):
                 rankings[pokemon]['relative_rank'] = r
                 r += 1
                 for pokemon2 in rankings:
-                    if pokemon.split(', ')[0] in pokemon2 and not pokemon2 == pokemon:
+                    if pokemon.split(', ')[0] == pokemon2.split(', ')[0] and not pokemon2 == pokemon:
                         rankings[pokemon2]['relative_rank'] = 0
 
     for pokemon in rankings:
-        rankings[pokemon]['absolute_rank'] *= 100 / (len(rankings) - 1)
-        rankings[pokemon]['absolute_rank'] = round(rankings[pokemon]['absolute_rank'], 1)
+        rankings[pokemon]['absolute_rank'] = round(rankings[pokemon]['absolute_rank'] * 100.0 / len(rankings), 1)
         name, fast, charge_1, charge_2 = pokemon.split(', ')
         rankings[pokemon]['name'] = name
         rankings[pokemon]['fast'] = fast
@@ -75,46 +76,56 @@ def calculate_meta(cup: str):
 
 
 def fill_all_card_info(cup: str, cup_types: tuple):
+    gm = GameMaster()
     db = TinyDB(f"{path}/data/databases/{cup}.json")
     sim_table = db.table('battle_results')
+    meta_table = db.table('meta')
+    print("Querying meta information...")
+    query = Query()
+    ordered_pokemon = meta_table.search(query.relative_rank != 0)
+    ordered_pokemon.sort(key=lambda k: k['relative_rank'])
+    print("Generating card info...")
     to_write = [
-        fill_card_info(cup, cup_types, document['name'], document['fast'], document['charge_1'], document['charge_2'], sim_table) for document in all_pokemon_movesets(cup)
+        fill_card_info(ordered_pokemon, cup_types, document['name'], document['fast'], document['charge_1'], document['charge_2'], sim_table, gm) for document in all_pokemon_movesets(cup)
     ]
     db.close()
-    db = TinyDB(f"{path}/data/databases/{cup}-card-data.json")
+    print("Writing to database...")
+    db = TinyDB(f"{path}/web/{cup}-card-data.json")
     db.insert_multiple(to_write)
     db.close()
 
 
-def fill_card_info(cup: str, cup_types: tuple, pokemon: str, fast: str, charge_1: str, charge_2: str, sim_table):
+def fill_card_info(ordered_pokemon, cup_types: tuple, pokemon: str, fast: str, charge_1: str, charge_2: str, sim_table, gm):
     # name, background, fast_data, charge_1_data, charge_2_data, winning_matchups, losing_matchups
-    ordered_pokemon = ordered_top_pokemon(cup)
     win_against = []
     lose_against = []
     i = 0
+    ally = ', '.join([pokemon, fast, charge_1, charge_2])
     query = Query()
-    while len(win_against) < 18 and len(lose_against) < 18:
-        ally = ', '.join([pokemon, fast, charge_1, charge_2])
+    battles = sim_table.search(query.pokemon.any([ally]))
+    while (len(win_against) < 18 or len(lose_against) < 18) and i < len(ordered_pokemon):
         enemy = ', '.join([ordered_pokemon[i]['name'], ordered_pokemon[i]['fast'], ordered_pokemon[i]['charge_1'], ordered_pokemon[i]['charge_2']])
-        battle = sim_table.search(query.pokemon == [ally, enemy])
-        if battle:
-            win = battle[0]['result'][0] > battle[0]['result'][1]
-        else:
-            battle = sim_table.search(query.pokemon == [enemy, ally])
-            win = battle[0]['result'][0] < battle[0]['result'][1]
+        for battle in battles:
+            if battle['pokemon'] == [ally, enemy]:
+                win = battle['result'][0] > battle['result'][1]
+                break
+            elif battle['pokemon'] == [enemy, ally]:
+                win = battle['result'][0] < battle['result'][1]
+                break
         if win and len(win_against) < 18:
             win_against.append(ordered_pokemon[i]['name'])
         elif not win and len(lose_against) < 18:
             lose_against.append(ordered_pokemon[i]['name'])
-    pokemon_types = gm.get_pokemon(pokemon)['types']
+        i += 1
+    pokemon_types = deepcopy(gm.get_pokemon(pokemon)['types'])
     background = pokemon_types[0] if pokemon_types[0] in cup_types else pokemon_types[1]
-    fast_data = gm.get_move(fast)
+    fast_data = deepcopy(gm.get_move(fast))
     if fast_data['type'] in pokemon_types:
         fast_data['power'] *= 1.2
-    charge_1_data = gm.get_move(charge_1)
+    charge_1_data = deepcopy(gm.get_move(charge_1))
     if charge_1_data['type'] in pokemon_types:
         charge_1_data['power'] *= 1.2
-    charge_2_data = gm.get_move(charge_2)
+    charge_2_data = deepcopy(gm.get_move(charge_2))
     if charge_2_data['type'] in pokemon_types:
         charge_2_data['power'] *= 1.2
     return {'name': pokemon,
@@ -190,11 +201,22 @@ def ordered_movesets_for_pokemon(cup: str, pokemon: str):
 
 
 def scale_ranking(rank, min_rank, max_rank):
-    return round((rank - min_rank) * 100 / (max_rank - min_rank))
+    return round((rank - min_rank) * 100 / (max_rank - min_rank), 1)
 
 
 if __name__ == '__main__':
-    gm = GameMaster()
-    for cup, cup_types in (('boulder', ('rock', 'fighting', 'steel', 'ground')), ('twilight', ('fairy', 'poison', 'dark', 'ghost')), ('tempest', ('flying', 'electric', 'ice', 'ground')), ('kingdom', ('steel', 'ice', 'fire', 'dragon'))):
-        fill_all_card_info(cup, cup_types)
-        print(f"Finished {cup}.")
+    yeet = ('boulder', ('rock', 'fighting', 'steel', 'ground'), 'twilight', ('fairy', 'poison', 'dark', 'ghost'), 'tempest', ('flying', 'electric', 'ice', 'ground'), 'kingdom', ('steel', 'ice', 'fire', 'dragon'))
+    jobs = []
+    for i in range(4):
+        jobs.append(Process(target=calculate_meta, args=(yeet[i * 2],)))
+        jobs[i].start()
+    for i in range(4):
+        jobs[i].join()
+        print(f"Meta for {yeet[i * 2]} finished.")
+    jobs = []
+    for i in range(4):
+        jobs.append(Process(target=fill_all_card_info, args=(yeet[i * 2], yeet[2 * i + 1])))
+        jobs[i].start()
+    for i in range(4):
+        jobs[i].join()
+        print(f"Card DB for {yeet[i * 2]} finished.")
