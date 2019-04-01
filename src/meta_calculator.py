@@ -163,7 +163,7 @@ def weight_matrix_with_removals(matrix: dict):
     scores.sort()
 
     for pokemon in matrix:
-        if matrix[pokemon]['row'] in scores[:min(5, len(scores))]:
+        if matrix[pokemon]['row'] in scores[:min(2, len(scores))]:
             to_remove.append(pokemon)
 
     return matrix, to_remove
@@ -203,7 +203,7 @@ def scale_ranking(rank, min_rank, max_rank):
     return round((rank - min_rank) * 100 / (max_rank - min_rank), 1)
 
 
-if __name__ == '__main__':
+def main():
     yeet = ('boulder', ('rock', 'fighting', 'steel', 'ground'), 'twilight', ('fairy', 'poison', 'dark', 'ghost'), 'tempest', ('flying', 'electric', 'ice', 'ground'), 'kingdom', ('steel', 'ice', 'fire', 'dragon'))
     jobs = []
     for i in range(4):
@@ -219,3 +219,7 @@ if __name__ == '__main__':
     for i in range(4):
         jobs[i].join()
         print(f"Card DB for {yeet[i * 2]} finished.")
+
+
+if __name__ == '__main__':
+    main()

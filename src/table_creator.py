@@ -45,7 +45,7 @@ def fill_move_template(pokemon_name: str, move_info: tuple, cup: str):
                                 )
 
 
-if __name__ == '__main__':
+def main():
     jobs = []
     cup = ['boulder', 'twilight', 'tempest', 'kingdom']
     for i in range(4):
@@ -54,3 +54,7 @@ if __name__ == '__main__':
     for i in range(4):
         jobs[i].join()
         print(f"Finished {cup[i]} cup.")
+
+
+if __name__ == '__main__':
+    main()

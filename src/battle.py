@@ -49,6 +49,6 @@ def battle_all_shields(ally: Pokemon, enemy: Pokemon):
 
 
 if __name__ == '__main__':
-    lapras = Pokemon('Lapras', 'Water Gun', 'Hydro Pump', 'Surf')
-    lucario = Pokemon('Lucario', 'Counter', 'Power-Up Punch', 'Close Combat')
-    print(battle(lucario, lapras, 2))
+    hitmonchan = Pokemon('Hitmonchan', 'Counter', 'Power-Up Punch', 'Ice Punch')
+    medicham = Pokemon('Medicham', 'Counter', 'Power-Up Punch', 'Counter')
+    print(battle_all_shields(hitmonchan, medicham))
