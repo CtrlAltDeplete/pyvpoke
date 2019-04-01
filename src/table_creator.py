@@ -39,8 +39,10 @@ def fill_move_template(pokemon_name: str, move_info: tuple, cup: str):
     charge_1_type = gm.get_move(charge_1_name)['type']
     charge_2_type = gm.get_move(charge_2_name)['type']
     card_address = f"{cup}+{pokemon_name}+{fast_name}+{charge_1_name}+{charge_2_name}"
-    return move_template.format(round(100 - absolute_rank, 0), fast_type, fast_name, charge_1_type, charge_1_name,
-                                charge_2_type, charge_2_name, card_address)
+    return move_template.format(round(100 - absolute_rank, 1), fast_type, fast_name, charge_1_type, charge_1_name,
+                                charge_2_type, charge_2_name, card_address, fast_type, fast_name, charge_1_type,
+                                charge_1_name, charge_2_type, charge_2_name, round(100 - absolute_rank, 1), card_address
+                                )
 
 
 if __name__ == '__main__':

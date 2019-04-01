@@ -154,17 +154,16 @@ def weight_matrix_with_removals(matrix: dict):
             row += matrix[ally][enemy] / matrix[ally]['column']
         matrix[ally]['row'] = row
         total += row
+    scores = []
     for ally in matrix:
         matrix[ally]['row'] = round(matrix[ally]['row'] * 100 / total, 4)
+        scores.append(matrix[ally]['row'])
 
-    min_score = inf
     to_remove = []
+    scores.sort()
 
     for pokemon in matrix:
-        min_score = min(min_score, matrix[pokemon]['row'])
-
-    for pokemon in matrix:
-        if matrix[pokemon]['row'] == min_score:
+        if matrix[pokemon]['row'] in scores[:min(5, len(scores))]:
             to_remove.append(pokemon)
 
     return matrix, to_remove
