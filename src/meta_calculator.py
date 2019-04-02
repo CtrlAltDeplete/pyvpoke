@@ -1,7 +1,6 @@
 from src.gamemaster import path, banned, GameMaster
 from tinydb import TinyDB, Query
-from math import inf
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from copy import deepcopy
 
 
@@ -85,14 +84,70 @@ def fill_all_card_info(cup: str, cup_types: tuple):
     ordered_pokemon = meta_table.search(query.relative_rank != 0)
     ordered_pokemon.sort(key=lambda k: k['relative_rank'])
     print("Generating card info...")
-    to_write = [
-        fill_card_info(ordered_pokemon, cup_types, document['name'], document['fast'], document['charge_1'], document['charge_2'], sim_table, gm) for document in all_pokemon_movesets(cup)
-    ]
+    num_processes = 5
+    groups = []
+    for i in range(num_processes):
+        groups.append([])
+    for i in range(len(ordered_pokemon)):
+        groups[i % num_processes].append((ordered_pokemon[i]['name'], ordered_pokemon[i]['fast'], ordered_pokemon[i]['charge_1'], ordered_pokemon[i]['charge_2']))
+    to_write = Queue()
+    jobs = []
+    for i in range(num_processes):
+        jobs.append(Process(target=fill_card_info_for_group, args=(ordered_pokemon, cup_types, groups[i], sim_table, gm, to_write)))
+        jobs[i].start()
+    for i in range(num_processes):
+        jobs[i].join()
     db.close()
     print("Writing to database...")
     db = TinyDB(f"{path}/web/{cup}-card-data.json")
     db.insert_multiple(to_write)
     db.close()
+
+
+def fill_card_info_for_group(ordered_pokemon, cup_types: tuple, group: list, sim_table, gm, queue):
+    for pokemon, fast, charge_1, charge_2 in group:
+        win_against = []
+        lose_against = []
+        i = 0
+        ally = ', '.join([pokemon, fast, charge_1, charge_2])
+        query = Query()
+        battles = sim_table.search(query.pokemon.any([ally]))
+        while (len(win_against) < 18 or len(lose_against) < 18) and i < len(ordered_pokemon):
+            enemy = ', '.join([ordered_pokemon[i]['name'], ordered_pokemon[i]['fast'], ordered_pokemon[i]['charge_1'],
+                               ordered_pokemon[i]['charge_2']])
+            for battle in battles:
+                if battle['pokemon'] == [ally, enemy]:
+                    win = battle['result'][0] > battle['result'][1]
+                    break
+                elif battle['pokemon'] == [enemy, ally]:
+                    win = battle['result'][0] < battle['result'][1]
+                    break
+            if win and len(win_against) < 18:
+                win_against.append(ordered_pokemon[i]['name'])
+            elif not win and len(lose_against) < 18:
+                lose_against.append(ordered_pokemon[i]['name'])
+            i += 1
+        pokemon_types = deepcopy(gm.get_pokemon(pokemon)['types'])
+        background = pokemon_types[0] if pokemon_types[0] in cup_types else pokemon_types[1]
+        fast_data = deepcopy(gm.get_move(fast))
+        if fast_data['type'] in pokemon_types:
+            fast_data['power'] *= 1.2
+        charge_1_data = deepcopy(gm.get_move(charge_1))
+        if charge_1_data['type'] in pokemon_types:
+            charge_1_data['power'] *= 1.2
+        charge_2_data = deepcopy(gm.get_move(charge_2))
+        if charge_2_data['type'] in pokemon_types:
+            charge_2_data['power'] *= 1.2
+        queue.append({'name': pokemon,
+                      'background': background,
+                      'fast_data': fast_data,
+                      'fast_name': fast,
+                      'charge_1_data': charge_1_data,
+                      'charge_1_name': charge_1,
+                      'charge_2_data': charge_2_data,
+                      'charge_2_name': charge_2,
+                      'winning_matchups': win_against,
+                      'losing_matchups': lose_against})
 
 
 def fill_card_info(ordered_pokemon, cup_types: tuple, pokemon: str, fast: str, charge_1: str, charge_2: str, sim_table, gm):
@@ -163,7 +218,7 @@ def weight_matrix_with_removals(matrix: dict):
     scores.sort()
 
     for pokemon in matrix:
-        if matrix[pokemon]['row'] in scores[:min(2, len(scores))]:
+        if matrix[pokemon]['row'] in scores[:min(3, len(scores))]:
             to_remove.append(pokemon)
 
     return matrix, to_remove
@@ -204,19 +259,20 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 def main():
-    yeet = ('boulder', ('rock', 'fighting', 'steel', 'ground'), 'twilight', ('fairy', 'poison', 'dark', 'ghost'), 'tempest', ('flying', 'electric', 'ice', 'ground'), 'kingdom', ('steel', 'ice', 'fire', 'dragon'))
+    # yeet = ('boulder', ('rock', 'fighting', 'steel', 'ground'), 'twilight', ('fairy', 'poison', 'dark', 'ghost'), 'tempest', ('flying', 'electric', 'ice', 'ground'), 'kingdom', ('steel', 'ice', 'fire', 'dragon'))
+    yeet = ('twilight', ('fairy', 'poison', 'dark', 'ghost'))
     jobs = []
-    for i in range(4):
+    for i in range(1):
         jobs.append(Process(target=calculate_meta, args=(yeet[i * 2],)))
         jobs[i].start()
-    for i in range(4):
+    for i in range(1):
         jobs[i].join()
         print(f"Meta for {yeet[i * 2]} finished.")
     jobs = []
-    for i in range(4):
+    for i in range(1):
         jobs.append(Process(target=fill_all_card_info, args=(yeet[i * 2], yeet[2 * i + 1])))
         jobs[i].start()
-    for i in range(4):
+    for i in range(1):
         jobs[i].join()
         print(f"Card DB for {yeet[i * 2]} finished.")
 

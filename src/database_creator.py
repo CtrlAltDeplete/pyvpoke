@@ -7,11 +7,8 @@ from tinydb import TinyDB
 from json import load, dump
 
 
-def fill_table_for_pokemon(pokemon_indices, all_pokemon, return_list):
-    previous_percent = 0
-    total = sum([x * (x - 1) / 2 for x in pokemon_indices])
-    current = 0
-
+def fill_table_for_pokemon(pokemon_indices, all_pokemon):
+    return_list = []
     for index in pokemon_indices:
         ally_name, ally_fast, ally_charge_1, ally_charge_2 = all_pokemon[index]
         ally = Pokemon(ally_name, ally_fast, ally_charge_1, ally_charge_2)
@@ -20,28 +17,26 @@ def fill_table_for_pokemon(pokemon_indices, all_pokemon, return_list):
             enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
             results = battle_all_shields(ally, enemy)
             return_list.append({'pokemon': [str(ally), str(enemy)], 'result': results})
-            current += 1
-            if round(100 * current / total) > 1 + previous_percent:
-                previous_percent = round(100 * len(return_list) / total)
-                print(f"Thread {pokemon_indices[0]}: {previous_percent}% complete.")
+        if index % 500 == 0:
+            print(f"{round(index / len(all_pokemon), 2)}%")
     return return_list
 
 
 def add_pokemon_move(cup_name: str, type_restrictions: tuple, pokemon: str, move_name: str):
     gm = GameMaster()
-    all_possibilites = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(type_restrictions))
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(type_restrictions))
 
     indices_list = []
-    for i in range(len(all_possibilites)):
-        if pokemon in all_possibilites[i] and move_name in all_possibilites[i]:
+    for i in range(len(all_possibilities)):
+        if pokemon in all_possibilities[i] and move_name in all_possibilities[i]:
             indices_list.append(i)
     to_write = []
     for index in indices_list:
-        ally_name, ally_fast, ally_charge_1, ally_charge_2 = all_possibilites[index]
+        ally_name, ally_fast, ally_charge_1, ally_charge_2 = all_possibilities[index]
         ally = Pokemon(ally_name, ally_fast, ally_charge_1, ally_charge_2)
-        for k in range(len(all_possibilites)):
+        for k in range(len(all_possibilities)):
             if k not in indices_list[:indices_list.index(index)]:
-                enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2 = all_possibilites[k]
+                enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2 = all_possibilities[k]
                 enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
                 results = battle_all_shields(ally, enemy)
                 to_write.append({'pokemon': [str(ally), str(enemy)], 'result': results})
@@ -307,11 +302,18 @@ def main2():
 
 
 if __name__ == '__main__':
-    cups_and_restrictions = (
-        ('boulder', ('rock', 'steel', 'ground', 'fighting')),
-        ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
-        ('tempest', ('ground', 'ice', 'electric', 'flying')),
-        ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
-    )
-    for cup, restrictions in cups_and_restrictions:
-        main(restrictions, cup)
+    # cups_and_restrictions = (
+    #     ('boulder', ('rock', 'steel', 'ground', 'fighting')),
+    #     ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
+    #     ('tempest', ('ground', 'ice', 'electric', 'flying')),
+    #     ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
+    # )
+    # for cup, restrictions in cups_and_restrictions:
+    #     main(restrictions, cup)
+    all_pokemon = [x for x in GameMaster().iter_pokemon_move_set_combos(('rock', 'steel', 'ground', 'fighting'))]
+    pokemon_indices = [i for i in range(len(all_pokemon))]
+    to_write = fill_table_for_pokemon(pokemon_indices, all_pokemon)
+    db = TinyDB(f'{path}/data/databases/boulder.json')
+    table = db.table('battle_results')
+    table.insert_multiple(to_write)
+    db.close()

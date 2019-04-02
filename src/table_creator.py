@@ -48,10 +48,10 @@ def fill_move_template(pokemon_name: str, move_info: tuple, cup: str):
 def main():
     jobs = []
     cup = ['boulder', 'twilight', 'tempest', 'kingdom']
-    for i in range(4):
+    for i in range(1, 2):
         jobs.append(Process(target=create_ranking_table, args=(cup[i], f'{path}/web/{cup[i]}.html')))
         jobs[i].start()
-    for i in range(4):
+    for i in range(1, 2):
         jobs[i].join()
         print(f"Finished {cup[i]} cup.")
 
