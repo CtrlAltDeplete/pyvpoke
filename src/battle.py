@@ -27,12 +27,12 @@ def battle(ally: Pokemon, enemy: Pokemon, shields: int):
     # There are 2 points for using enemy shields and 3 for using enemy health.
     ally_rating = enemy.starting_shields - enemy.get_shields()
     enemy_rating = ally.starting_shields - ally.get_shields()
-    ally_rating += 5 * (enemy.starting_health - enemy.get_health()) / enemy.starting_health
-    enemy_rating += 5 * (ally.starting_health - ally.get_health()) / ally.starting_health
+    ally_rating += round(7 * (enemy.starting_health - enemy.get_health()) / enemy.starting_health, 1)
+    enemy_rating += round(7 * (ally.starting_health - ally.get_health()) / ally.starting_health, 1)
     if ally.get_health() > 0:
-        ally_rating += 3 * ally.energy / 100
+        ally_rating += round(3 * ally.energy / 100, 1)
     if enemy.get_health() > 0:
-        enemy_rating += 3 * enemy.energy / 100
+        enemy_rating += round(3 * enemy.energy / 100, 1)
 
     total_rating = ally_rating + enemy_rating
 
@@ -40,15 +40,15 @@ def battle(ally: Pokemon, enemy: Pokemon, shields: int):
 
 
 def battle_all_shields(ally: Pokemon, enemy: Pokemon):
-    results = [0, 0]
-    for i in range(3):
-        new_result = battle(ally, enemy, i)
-        results[0] += new_result[0]
-        results[1] += new_result[1]
-    return int(round(results[0] / 3, 0)), int(round(results[1] / 3, 0))
+    return [battle(ally, enemy, i) for i in range(3)]
 
 
 if __name__ == '__main__':
     hitmonchan = Pokemon('Hitmonchan', 'Counter', 'Power-Up Punch', 'Ice Punch')
-    medicham = Pokemon('Medicham', 'Counter', 'Power-Up Punch', 'Counter')
-    print(battle_all_shields(hitmonchan, medicham))
+    medicham = Pokemon('Medicham', 'Counter', 'Power-Up Punch', 'Psychic')
+    results = battle_all_shields(hitmonchan, medicham)
+    for result in results:
+        print(result)
+    # (358, 642)
+    # (425, 575)
+    # (373, 627)

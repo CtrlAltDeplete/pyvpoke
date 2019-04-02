@@ -122,6 +122,9 @@ class Pokemon:
         self.hp = self.starting_health
         self.energy = self.starting_energy
         self.shields = self.starting_shields
+        self.cooldown = 0
+        self.buff_count = 0
+        self.buffs = [1, 1]
 
     def get_effectiveness(self, move_type):
         if move_type in self.single_weak:

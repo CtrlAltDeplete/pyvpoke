@@ -21,8 +21,8 @@ def calculate_meta(cup: str):
             matrix[ally] = {}
         if enemy not in matrix:
             matrix[enemy] = {}
-        matrix[ally][enemy] = results[0]
-        matrix[enemy][ally] = results[1]
+        matrix[ally][enemy] = sum(r[0] for r in results) / 3
+        matrix[enemy][ally] = sum(r[1] for r in results) / 3
 
     to_remove = []
     for pokemon in matrix:
@@ -259,8 +259,7 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 def main():
-    # yeet = ('boulder', ('rock', 'fighting', 'steel', 'ground'), 'twilight', ('fairy', 'poison', 'dark', 'ghost'), 'tempest', ('flying', 'electric', 'ice', 'ground'), 'kingdom', ('steel', 'ice', 'fire', 'dragon'))
-    yeet = ('twilight', ('fairy', 'poison', 'dark', 'ghost'))
+    yeet = ('boulder', ('rock', 'fighting', 'steel', 'ground'), 'twilight', ('fairy', 'poison', 'dark', 'ghost'), 'tempest', ('flying', 'electric', 'ice', 'ground'), 'kingdom', ('steel', 'ice', 'fire', 'dragon'))
     jobs = []
     for i in range(1):
         jobs.append(Process(target=calculate_meta, args=(yeet[i * 2],)))
