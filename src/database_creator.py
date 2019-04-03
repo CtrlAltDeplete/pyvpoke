@@ -4,7 +4,6 @@ from src.gamemaster import path, GameMaster
 from src.pokemon import Pokemon
 from time import time
 from tinydb import TinyDB
-from json import load, dump
 
 
 def fill_table_for_pokemon(pokemon_indices, all_pokemon, return_list):
@@ -19,9 +18,6 @@ def fill_table_for_pokemon(pokemon_indices, all_pokemon, return_list):
             enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2 = all_pokemon[k]
             enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
             results = battle_all_shields(ally, enemy)
-            if str(ally) == "Hitmonchan, Counter, Ice Punch, Power-Up Punch" and str(enemy) == "Medicham, Counter, Psychic, Power-Up Punch":
-                for r in results:
-                    print(r)
             return_list.append({'pokemon': [str(ally), str(enemy)], 'result': results})
             current += 1
             if round(100 * current / total) > 1 + previous_percent:

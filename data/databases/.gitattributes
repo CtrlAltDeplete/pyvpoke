@@ -1,3 +1,4 @@
 boulder.json filter=lfs diff=lfs merge=lfs -text
 tempest.json filter=lfs diff=lfs merge=lfs -text
 twilight.json filter=lfs diff=lfs merge=lfs -text
+kingdom.json filter=lfs diff=lfs merge=lfs -text
