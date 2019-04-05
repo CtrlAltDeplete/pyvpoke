@@ -102,6 +102,7 @@ class GameMaster:
             for fast_move in pokemon_data['fast']:
                 for i in range(len(pokemon_data['charge'])):
                     charge_1 = pokemon_data['charge'][i]
+                    yield pokemon, fast_move, charge_1, None
                     for j in range(i + 1, len(pokemon_data['charge'])):
                         charge_2 = pokemon_data['charge'][j]
                         yield pokemon, fast_move, charge_1, charge_2

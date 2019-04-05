@@ -1,26 +1,29 @@
 from src.gamemaster import path, GameMaster
-from src.meta_calculator import ordered_top_pokemon, ordered_movesets_for_pokemon
+from src.meta_calculator import (
+    ordered_top_pokemon, ordered_movesets_for_pokemon,
+    ordered_top_pokemon_with_subsetting, ordered_movesets_for_pokemon_with_subsetting
+)
 from multiprocessing import Process
 from json import dump
 
 
-with open(f"{path}/data/move_template.html") as f:
-    move_template = f.read()
-with open(f"{path}/data/list_item_template.html") as f:
-    listing_template = f.read()
 gm = GameMaster()
 
 
-def create_ranking_table(cup: str):
+def create_ranking_table(cup: str, subsetting=False):
     list_items = []
-    for pokemon in ordered_top_pokemon(cup):
+    for pokemon in ordered_top_pokemon(cup, subsetting):
         name = pokemon['name'].replace("♂", " (Male)").replace("♀", " (Female)")
         rank = pokemon['relative_rank']
         percentile = round(100 - pokemon['absolute_rank'], 1)
-        moves = ordered_movesets_for_pokemon(cup, name)
+        moves = ordered_movesets_for_pokemon(cup, name, subsetting)
         moves_html = []
         for moveset in moves:
-            moves_html.append(fill_move_template(name, moveset, cup))
+            html = fill_move_template(name, moveset, cup)
+            if html:
+                moves_html.append(html)
+        if not moves_html:
+            continue
         if percentile >= 100 - 4.26:
             color = 'green'
         elif percentile >= 100 - 4.26 - 4.26 ** 2:
@@ -28,12 +31,14 @@ def create_ranking_table(cup: str):
         else:
             color = 'red'
         list_items.append([name, name, rank, name, name, color, percentile, percentile, name, moves_html])
-    with open(f"{path}/web/{cup}.rankings", 'w') as f:
+    with open(f"{path}/web/{cup}.{'subsetting' if subsetting else 'rankings'}", 'w') as f:
         dump(list_items, f)
 
 
-def fill_move_template(pokemon_name: str, move_info: tuple, cup: str):
+def fill_move_template(pokemon_name: str, move_info: tuple, cup: str, filter=False):
     absolute_rank, fast_name, charge_1_name, charge_2_name = move_info
+    if filter and round(100 - absolute_rank, 1) < 0.1:
+        return None
     fast_type = gm.get_move(fast_name)['type']
     charge_1_type = gm.get_move(charge_1_name)['type']
     charge_2_type = gm.get_move(charge_2_name)['type']
