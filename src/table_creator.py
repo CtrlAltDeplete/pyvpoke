@@ -1,8 +1,8 @@
 from src.gamemaster import path, GameMaster
 from src.meta_calculator import (
     ordered_top_pokemon, ordered_movesets_for_pokemon,
-    ordered_top_pokemon_with_subsetting, ordered_movesets_for_pokemon_with_subsetting
 )
+from src.pokemon import Pokemon
 from multiprocessing import Process
 from json import dump
 
@@ -12,11 +12,11 @@ gm = GameMaster()
 
 def create_ranking_table(cup: str, subsetting=False):
     list_items = []
-    for pokemon in ordered_top_pokemon(cup, subsetting):
-        name = pokemon['name'].replace("♂", " (Male)").replace("♀", " (Female)")
+    for pokemon in ordered_top_pokemon(cup):
+        name = pokemon['name']
         rank = pokemon['relative_rank']
         percentile = round(100 - pokemon['absolute_rank'], 1)
-        moves = ordered_movesets_for_pokemon(cup, name, subsetting)
+        moves = ordered_movesets_for_pokemon(cup, name)
         moves_html = []
         for moveset in moves:
             html = fill_move_template(name, moveset, cup)
@@ -30,15 +30,16 @@ def create_ranking_table(cup: str, subsetting=False):
             color = 'yellow'
         else:
             color = 'red'
-        list_items.append([name, name, rank, name, name, color, percentile, percentile, name, moves_html])
+        p = Pokemon(name, "Tackle", "Body Slam", "Body Slam")
+        level = p.level
+        atkIV, defIV, staIV = p.ivs['atk'], p.ivs['def'], p.ivs['hp']
+        list_items.append([name, name, rank, name, name, color, percentile, percentile, name, moves_html, level, atkIV, defIV, staIV])
     with open(f"{path}/web/{cup}.{'subsetting' if subsetting else 'rankings'}", 'w') as f:
         dump(list_items, f)
 
 
-def fill_move_template(pokemon_name: str, move_info: tuple, cup: str, filter=False):
+def fill_move_template(pokemon_name: str, move_info: tuple, cup: str):
     absolute_rank, fast_name, charge_1_name, charge_2_name = move_info
-    if filter and round(100 - absolute_rank, 1) < 0.1:
-        return None
     fast_type = gm.get_move(fast_name)['type']
     charge_1_type = gm.get_move(charge_1_name)['type']
     charge_2_type = gm.get_move(charge_2_name)['type']
@@ -52,7 +53,7 @@ def main():
     jobs = []
     cup = ['boulder', 'twilight', 'tempest', 'kingdom']
     for i in range(4):
-        jobs.append(Process(target=create_ranking_table, args=(cup[i],)))
+        jobs.append(Process(target=create_ranking_table, args=(cup[i], True)))
         jobs[i].start()
     for i in range(4):
         jobs[i].join()
