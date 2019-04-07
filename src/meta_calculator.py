@@ -1,6 +1,6 @@
-from src.gamemaster import path, banned, GameMaster
+from src.gamemaster import path, banned, ignored, GameMaster
 from tinydb import TinyDB, Query
-from multiprocessing import Process, Queue
+from multiprocessing import Process
 from copy import deepcopy
 
 
@@ -152,6 +152,8 @@ def weight_matrix_with_removals_and_subsetting(matrix: dict):
     for pokemon, v in victories:
         if any(v.issubset(w[1]) and v != w[1] for w in victories):
             to_ignore.append(pokemon)
+        elif pokemon.split(', ')[0] in ignored:
+            to_ignore.append(pokemon)
 
     for ally in matrix:
         column = 0
@@ -183,12 +185,13 @@ def weight_matrix_with_removals_and_subsetting(matrix: dict):
     return matrix, to_remove
 
 
-def ordered_top_pokemon(cup: str):
+def ordered_top_pokemon(cup: str, percentile_limit: int = 0):
     query = Query()
     db = TinyDB(f"{path}/data/databases/{cup}.json")
     table = db.table('meta_with_subsetting')
     data = table.search(query.relative_rank != 0)
     db.close()
+    data = [x for x in data if 100 - x['absolute_rank'] >= percentile_limit]
     data.sort(key=lambda k: k['relative_rank'])
     return data
 

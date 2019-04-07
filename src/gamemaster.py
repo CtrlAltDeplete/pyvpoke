@@ -22,8 +22,9 @@ DRAGON = 'dragon'
 DARK = 'dark'
 FAIRY = 'fairy'
 banned = ('Mewtwo', 'Giratina (Altered Forme)', 'Groudon', 'Kygore', 'Rayquaza', 'Garchomp', 'Latios', 'Latias',
-          'Palkia', 'Dialga', 'Heatran', 'Giratina (Origin Forme)', 'Jirachi', 'Gastrodon', 'Shaymin (Sky Forme)',
-          'Shaymin (Lan Forme)', 'Rotom', 'Magnezone', 'Gallade', 'Probopass', 'Gabite')
+          'Palkia', 'Dialga', 'Heatran', 'Giratina (Origin Forme)', 'Gastrodon', 'Shaymin (Sky Forme)',
+          'Shaymin (Lan Forme)', 'Rotom', 'Gallade', 'Gabite')
+ignored = ('Mew', 'Jirachi', 'Magnezone', 'Probopass')
 type_to_color = {
     NORMAL: "A8A77A",
     FIGHTING: "C22E28",

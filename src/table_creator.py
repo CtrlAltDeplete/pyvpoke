@@ -4,7 +4,8 @@ from src.meta_calculator import (
 )
 from src.pokemon import Pokemon
 from multiprocessing import Process
-from json import dump
+from tinydb import TinyDB, Query
+from json import dump, load
 
 
 gm = GameMaster()
@@ -30,12 +31,76 @@ def create_ranking_table(cup: str, subsetting=False):
             color = 'yellow'
         else:
             color = 'red'
-        p = Pokemon(name, "Tackle", "Body Slam", "Body Slam")
+        p = Pokemon(name, pokemon['fast'], pokemon['charge_1'], pokemon['charge_2'])
         level = p.level
         atkIV, defIV, staIV = p.ivs['atk'], p.ivs['def'], p.ivs['hp']
-        list_items.append([name, name, rank, name, name, color, percentile, percentile, name, moves_html, level, atkIV, defIV, staIV])
+        works_well_with, works_well_against, works_poorly_against = combos_with_and_against(cup, str(p))
+        list_item = {
+            'name': name,
+            'relative_rank': rank,
+            'color': color,
+            'absolute_rank': percentile,
+            'level': level,
+            'atk': atkIV,
+            'def': defIV,
+            'sta': staIV,
+            'movesets': moves_html,
+            'works_well_with': works_well_with,
+            'works_well_against': works_well_against,
+            'works_poorly_against': works_poorly_against
+        }
+        list_items.append(list_item)
     with open(f"{path}/web/{cup}.{'subsetting' if subsetting else 'rankings'}", 'w') as f:
         dump(list_items, f)
+
+
+def combos_with_and_against(cup, pokemon):
+    meta = ordered_top_pokemon(cup, 95)
+    works_well_with = []
+    works_well_against = []
+    works_poorly_against = []
+    matrix = {pokemon: {}}
+    db = TinyDB(f"{path}/data/databases/{cup}.json")
+    table = db.table('battle_results')
+    query = Query()
+    results = table.search(query.pokemon.any([pokemon]))
+    for mon in meta:
+        mon_string = ", ".join([mon['name'], mon['fast'], mon['charge_1'], mon['charge_2']])
+        for result in results:
+            if result['pokemon'] == [pokemon, mon_string]:
+                r = sum([x[0] for x in result['result']])
+            elif result['pokemon'] == [mon_string, pokemon]:
+                r = sum([x[1] for x in result['result']])
+        matrix[pokemon][mon['name']] = r
+        if mon_string != pokemon:
+            works_well_against.append((r, mon['name']))
+            works_poorly_against.append((r, mon['name']))
+        matrix[mon['name']] = {}
+        query_2 = Query()
+        results_2 = table.search(query_2.pokemon.any([pokemon]))
+        for mon2 in meta:
+            mon_2_string = ", ".join([mon2['name'], mon2['fast'], mon2['charge_1'], mon2['charge_2']])
+            for result in results_2:
+                if result['pokemon'] == [mon_string, mon_2_string]:
+                    r = sum([x[0] for x in result['result']])
+                elif result['pokemon'] == [mon_2_string, mon_string]:
+                    r = sum([x[1] for x in result['result']])
+            matrix[mon['name']][mon2['name']] = r
+    db.close()
+    for mon in meta:
+        points = 1
+        for mon2 in meta:
+            points *= max(matrix[pokemon][mon2['name']], matrix[mon['name']][mon2['name']])
+        if mon['name'] not in pokemon:
+            works_well_with.append((points, mon['name']))
+
+    works_well_with.sort(reverse=True)
+    works_well_against.sort(reverse=True)
+    works_poorly_against.sort(reverse=False)
+    works_well_with = [x[1] for x in works_well_with[:4]]
+    works_well_against = [x[1] for x in works_well_against[:4]]
+    works_poorly_against = [x[1] for x in works_poorly_against[:4]]
+    return works_well_with, works_well_against, works_poorly_against
 
 
 def fill_move_template(pokemon_name: str, move_info: tuple, cup: str):
@@ -44,9 +109,16 @@ def fill_move_template(pokemon_name: str, move_info: tuple, cup: str):
     charge_1_type = gm.get_move(charge_1_name)['type']
     charge_2_type = gm.get_move(charge_2_name)['type']
     card_address = f"{cup}+{pokemon_name}+{fast_name}+{charge_1_name}+{charge_2_name}"
-    return [round(100 - absolute_rank, 1), fast_type, fast_name, charge_1_type, charge_1_name, charge_2_type,
-            charge_2_name, card_address, fast_type, fast_name, charge_1_type, charge_1_name, charge_2_type,
-            charge_2_name, round(100 - absolute_rank, 1), card_address]
+    return {
+        'absolute_rank': round(100 - absolute_rank, 1),
+        'fast_type': fast_type,
+        'fast_name': fast_name,
+        'charge_1_type': charge_1_type,
+        'charge_1_name': charge_1_name,
+        'charge_2_type': charge_2_type,
+        'charge_2_name': charge_2_name,
+        'string': card_address
+    }
 
 
 def main():
@@ -58,7 +130,22 @@ def main():
     for i in range(4):
         jobs[i].join()
         print(f"Finished {cup[i]} cup.")
+    # create_ranking_table('kingdom', True)
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    for cup in ['boulder', 'twilight']:
+        with open(f"{path}/web/{cup}.subsetting") as f:
+            data = load(f)
+        for i in range(len(data)):
+            mon = data[i]
+            move = mon['movesets'][0]
+            mon_string = ", ".join([mon['name'], move['fast_name'], move['charge_1_name'], move['charge_2_name']])
+            well_with, well_against, poorly_against = combos_with_and_against(cup, mon_string)
+            mon['works_well_with'] = well_with
+            mon['works_well_against'] = well_against
+            mon['works_poorly_against'] = poorly_against
+            data[i] = mon
+        with open(f"{path}/web/{cup}-fixed.subsetting", 'w') as f:
+            dump(data, f)
