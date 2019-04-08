@@ -63,7 +63,7 @@ def main(type_restrictions: tuple, cup_name: str):
             pokemon_results[enemy_name] = {}
         if pokemon[1] not in pokemon_results[enemy_name]:
             pokemon_results[enemy_name][pokemon[1]] = []
-        pokemon[enemy_name][pokemon[1]].append({'enemy': pokemon[0], 'results': enemy_result})
+        pokemon_results[enemy_name][pokemon[1]].append({'enemy': pokemon[0], 'results': enemy_result})
 
     for pokemon in pokemon_results:
         db = TinyDB(f"{path}/data/databases/{cup_name}/{pokemon}.json")
