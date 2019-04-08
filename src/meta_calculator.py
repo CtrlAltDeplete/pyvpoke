@@ -2,27 +2,21 @@ from src.gamemaster import path, banned, ignored, GameMaster
 from tinydb import TinyDB, Query
 from multiprocessing import Process
 from copy import deepcopy
+import os
 
 
-def calculate_meta_with_subsetting(cup: str):
-    db = TinyDB(f"{path}/data/databases/{cup}.json")
-    sim_table = db.table('battle_results')
-    db.purge_table('meta_with_subsetting')
-    meta_table = db.table('meta_with_subsetting')
+def calculate_meta_with_subsetting(cup_directory: str):
     matrix = {}
-    query = Query()
-
-    print("Querying data...")
-
-    for record in sim_table.search(query.result.exists()):
-        ally, enemy = record['pokemon']
-        results = record['result']
-        if ally not in matrix:
-            matrix[ally] = {}
-        if enemy not in matrix:
-            matrix[enemy] = {}
-        matrix[ally][enemy] = sum(r[0] for r in results) / 3
-        matrix[enemy][ally] = sum(r[1] for r in results) / 3
+    for db_file in os.listdir(cup_directory):
+        db = TinyDB(os.path.join(cup_directory, db_file))
+        sim_table = db.table('battle_results')
+        for doc in sim_table.all():
+            ally, enemy = doc['pokemon']
+            results = doc['result']
+            if ally not in matrix:
+                matrix[ally] = {}
+            matrix[ally][enemy] = sum(r[0] for r in results) / len(results)
+        db.close()
 
     to_remove = []
     for pokemon in matrix:
@@ -40,7 +34,7 @@ def calculate_meta_with_subsetting(cup: str):
     print("Matrix filled, analyzing data...")
 
     while current_rank > 0:
-        matrix, to_remove = weight_matrix_with_removals_and_subsetting(matrix)
+        matrix, to_remove = weight_matrix_with_removals(matrix)
         for pokemon in to_remove:
             rankings[pokemon] = {"absolute_rank": current_rank}
             matrix.pop(pokemon, None)
@@ -70,26 +64,77 @@ def calculate_meta_with_subsetting(cup: str):
 
     rankings = [rankings[k] for k in rankings]
 
-    meta_table.insert_multiple(rankings)
+    db = TinyDB(f"{cup_directory}/meta.rankings")
+    table = db.table('meta')
+    table.insert_multiple(rankings)
     db.close()
+
+
+def weight_matrix_with_removals(matrix: dict):
+    victories = {}
+    for ally in matrix:
+        victories[ally] = []
+        for enemy in matrix:
+            if matrix[ally][enemy] > matrix[enemy][ally]:
+                victories[ally].append(enemy)
+
+    to_ignore = []
+    victories = [(pokemon, set(v)) for pokemon, v in victories.items()]
+    for pokemon, v in victories:
+        if any(v.issubset(w[1]) and v != w[1] for w in victories):
+            to_ignore.append(pokemon)
+        elif pokemon.split(', ')[0] in ignored:
+            to_ignore.append(pokemon)
+
+    for ally in matrix:
+        column = 0
+        for enemy in matrix:
+            if enemy not in to_ignore:
+                column += matrix[enemy][ally]
+        matrix[ally]['column'] = column
+
+    total = 0
+    for ally in matrix:
+        row = 0
+        for enemy in matrix:
+            row += matrix[ally][enemy] / matrix[ally]['column']
+        matrix[ally]['row'] = row
+        total += row
+
+    scores = []
+    for ally in matrix:
+        matrix[ally]['row'] = round(matrix[ally]['row'] * 100 / total, 4)
+        scores.append(matrix[ally]['row'])
+
+    to_remove = []
+    scores.sort()
+
+    for pokemon in matrix:
+        if matrix[pokemon]['row'] in scores[:min(3, len(scores))]:
+            to_remove.append(pokemon)
+
+    return matrix, to_remove
 
 
 def fill_all_card_info(cup: str, cup_types: tuple):
     gm = GameMaster()
-    db = TinyDB(f"{path}/data/databases/{cup}.json")
-    sim_table = db.table('battle_results')
-    meta_table = db.table('meta_with_subsetting')
+    db = TinyDB(f"{path}/data/databases/{cup}/meta.rankings")
+    # sim_table = db.table('battle_results')
+    meta_table = db.table('meta')
     print("Querying meta information...")
     query = Query()
     ordered_pokemon = meta_table.search(query.relative_rank != 0)
+    db.close()
     ordered_pokemon.sort(key=lambda k: k['relative_rank'])
     print("Generating card info...")
-    to_write = [
-        fill_card_info(ordered_pokemon, cup_types, document['name'], document['fast'], document['charge_1'], document['charge_2'], sim_table, gm) for document in all_pokemon_movesets(cup)
-    ]
-    db.close()
+    to_write = []
+    for doc in all_pokemon_movesets(cup):
+        db = TinyDB(f"{path}/data/databases/{cup}/{doc['name']}.json")
+        sim_table = db.table('battle_results')
+        to_write.append(fill_card_info(ordered_pokemon, cup_types, doc['name'], doc['fast'], doc['charge_1'], doc['charge_2'], sim_table, gm))
+        db.close()
     print("Writing to database...")
-    db = TinyDB(f"{path}/web/{cup}-card-data.json")
+    db = TinyDB(f"{path}/web/{cup}.carddata")
     db.insert_multiple(to_write)
     db.close()
 
@@ -139,56 +184,10 @@ def fill_card_info(ordered_pokemon, cup_types: tuple, pokemon: str, fast: str, c
             'losing_matchups': lose_against}
 
 
-def weight_matrix_with_removals_and_subsetting(matrix: dict):
-    victories = {}
-    for ally in matrix:
-        victories[ally] = []
-        for enemy in matrix:
-            if matrix[ally][enemy] > matrix[enemy][ally]:
-                victories[ally].append(enemy)
-
-    to_ignore = []
-    victories = [(pokemon, set(v)) for pokemon, v in victories.items()]
-    for pokemon, v in victories:
-        if any(v.issubset(w[1]) and v != w[1] for w in victories):
-            to_ignore.append(pokemon)
-        elif pokemon.split(', ')[0] in ignored:
-            to_ignore.append(pokemon)
-
-    for ally in matrix:
-        column = 0
-        for enemy in matrix:
-            if enemy not in to_ignore:
-                column += matrix[enemy][ally]
-        matrix[ally]['column'] = column
-
-    total = 0
-    for ally in matrix:
-        row = 0
-        for enemy in matrix:
-            row += matrix[ally][enemy] / matrix[ally]['column']
-        matrix[ally]['row'] = row
-        total += row
-
-    scores = []
-    for ally in matrix:
-        matrix[ally]['row'] = round(matrix[ally]['row'] * 100 / total, 4)
-        scores.append(matrix[ally]['row'])
-
-    to_remove = []
-    scores.sort()
-
-    for pokemon in matrix:
-        if matrix[pokemon]['row'] in scores[:min(3, len(scores))]:
-            to_remove.append(pokemon)
-
-    return matrix, to_remove
-
-
 def ordered_top_pokemon(cup: str, percentile_limit: int = 0):
     query = Query()
-    db = TinyDB(f"{path}/data/databases/{cup}.json")
-    table = db.table('meta_with_subsetting')
+    db = TinyDB(f"{path}/data/databases/{cup}/meta.rankings")
+    table = db.table('meta')
     data = table.search(query.relative_rank != 0)
     db.close()
     data = [x for x in data if 100 - x['absolute_rank'] >= percentile_limit]
@@ -197,10 +196,9 @@ def ordered_top_pokemon(cup: str, percentile_limit: int = 0):
 
 
 def all_pokemon_movesets(cup: str):
-    query = Query()
-    db = TinyDB(f"{path}/data/databases/{cup}.json")
-    table = db.table('meta_with_subsetting')
-    data = table.search(query.absolute_rank.exists())
+    db = TinyDB(f"{path}/data/databases/{cup}/meta.rankings")
+    table = db.table('meta')
+    data = table.all()
     db.close()
     data.sort(key=lambda k: k['absolute_rank'])
     return data
@@ -208,8 +206,8 @@ def all_pokemon_movesets(cup: str):
 
 def ordered_movesets_for_pokemon(cup: str, pokemon: str):
     query = Query()
-    db = TinyDB(f"{path}/data/databases/{cup}.json")
-    table = db.table('meta_with_subsetting')
+    db = TinyDB(f"{path}/data/databases/{cup}/meta.rankings")
+    table = db.table('meta')
     data = table.search(query.name == pokemon)
     data = [(d['absolute_rank'], d['fast'], d['charge_1'], d['charge_2']) for d in data]
     data.sort(key=lambda k: k[0])
@@ -224,7 +222,7 @@ def main():
     yeet = ('boulder', ('rock', 'fighting', 'steel', 'ground'), 'twilight', ('fairy', 'poison', 'dark', 'ghost'), 'tempest', ('flying', 'electric', 'ice', 'ground'), 'kingdom', ('steel', 'ice', 'fire', 'dragon'))
     # jobs = []
     # for i in range(4):
-    #     jobs.append(Process(target=calculate_meta_with_subsetting, args=(yeet[i * 2],)))
+    #     jobs.append(Process(target=calculate_meta, args=(yeet[i * 2],)))
     #     jobs[i].start()
     # for i in range(4):
     #     jobs[i].join()
