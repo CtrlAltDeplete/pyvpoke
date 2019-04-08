@@ -15,7 +15,6 @@ def fill_table_for_pokemon(pokemon_indices, all_pokemon, return_list):
             enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
             results = battle_all_shields(ally, enemy)
             return_list.append({'pokemon': [str(ally), str(enemy)], 'result': results})
-    return return_list
 
 
 def main(type_restrictions: tuple, cup_name: str):
@@ -80,9 +79,12 @@ def main(type_restrictions: tuple, cup_name: str):
 def debug():
     gm = GameMaster()
 
-    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in
-                              gm.iter_pokemon_move_set_combos(('rock', 'ground', 'fighting', 'steel')))
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for 
+pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(('steel', 'ice', 'fire', 'dragon')))
+
+    print("Starting Processes...")
     return_list = []
+
     fill_table_for_pokemon([0], all_possibilities, return_list)
 
     pokemon_results = {}
@@ -106,7 +108,7 @@ def debug():
         pokemon_results[enemy_name][pokemon[1]].append({'enemy': pokemon[0], 'results': enemy_result})
 
     for pokemon in pokemon_results:
-        db = TinyDB(f"{path}/data/databases/boulder/{pokemon}.json")
+        db = TinyDB(f"{path}/data/databases/kingdom/{pokemon}.json")
         table = db.table('battle_results')
         to_insert = []
         for poke in pokemon_results[pokemon]:
@@ -119,6 +121,7 @@ def debug():
 
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     cups_and_restrictions = (
         ('boulder', ('rock', 'steel', 'ground', 'fighting')),
         ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
