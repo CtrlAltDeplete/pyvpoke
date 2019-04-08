@@ -79,8 +79,7 @@ def main(type_restrictions: tuple, cup_name: str):
 def debug():
     gm = GameMaster()
 
-    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for 
-pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(('steel', 'ice', 'fire', 'dragon')))
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(('steel', 'ice', 'fire', 'dragon')))
 
     print("Starting Processes...")
     return_list = []
@@ -112,7 +111,7 @@ pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(('steel', '
         table = db.table('battle_results')
         to_insert = []
         for poke in pokemon_results[pokemon]:
-            to_insert.append(pokemon_results[pokemon][poke])
+            to_insert.extend(pokemon_results[pokemon][poke])
         table.insert_multiple(to_insert)
         db.close()
 
@@ -121,13 +120,12 @@ pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(('steel', '
 
 
 if __name__ == '__main__':
-<<<<<<< HEAD
-    cups_and_restrictions = (
-        ('boulder', ('rock', 'steel', 'ground', 'fighting')),
-        ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
-        ('tempest', ('ground', 'ice', 'electric', 'flying')),
-        ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
-    )
-    for cup, restrictions in cups_and_restrictions:
-        main(restrictions, cup)
-    # debug()
+    # cups_and_restrictions = (
+    #     ('boulder', ('rock', 'steel', 'ground', 'fighting')),
+    #     ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
+    #     ('tempest', ('ground', 'ice', 'electric', 'flying')),
+    #     ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
+    # )
+    # for cup, restrictions in cups_and_restrictions:
+    #     main(restrictions, cup)
+    debug()
