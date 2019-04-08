@@ -56,6 +56,8 @@ def main(type_restrictions: tuple, cup_name: str):
         if pokemon[0] not in pokemon_results[ally_name]:
             pokemon_results[ally_name][pokemon[0]] = []
         pokemon_results[ally_name][pokemon[0]].append({'enemy': pokemon[1], 'results': ally_result})
+        if pokemon[0] == pokemon[1]:
+            continue
         enemy_name = pokemon[1].split(', ')[0]
         if enemy_name not in pokemon_results:
             pokemon_results[enemy_name] = {}
