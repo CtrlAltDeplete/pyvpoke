@@ -77,6 +77,47 @@ def main(type_restrictions: tuple, cup_name: str):
     print("Done.")
 
 
+def debug():
+    gm = GameMaster()
+
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in
+                              gm.iter_pokemon_move_set_combos(('rock', 'ground', 'fighting', 'steel')))
+    return_list = []
+    fill_table_for_pokemon([0], all_possibilities, return_list)
+
+    pokemon_results = {}
+    for result in return_list:
+        pokemon = result['pokemon']
+        ally_result = result['result']
+        enemy_result = ((x[1], x[0]) for x in ally_result)
+        ally_name = pokemon[0].split(', ')[0]
+        if ally_name not in pokemon_results:
+            pokemon_results[ally_name] = {}
+        if pokemon[0] not in pokemon_results[ally_name]:
+            pokemon_results[ally_name][pokemon[0]] = []
+        pokemon_results[ally_name][pokemon[0]].append({'enemy': pokemon[1], 'results': ally_result})
+        if pokemon[0] == pokemon[1]:
+            continue
+        enemy_name = pokemon[1].split(', ')[0]
+        if enemy_name not in pokemon_results:
+            pokemon_results[enemy_name] = {}
+        if pokemon[1] not in pokemon_results[enemy_name]:
+            pokemon_results[enemy_name][pokemon[1]] = []
+        pokemon_results[enemy_name][pokemon[1]].append({'enemy': pokemon[0], 'results': enemy_result})
+
+    for pokemon in pokemon_results:
+        db = TinyDB(f"{path}/data/databases/boulder/{pokemon}.json")
+        table = db.table('battle_results')
+        to_insert = []
+        for poke in pokemon_results[pokemon]:
+            to_insert.append(pokemon_results[pokemon][poke])
+        table.insert_multiple(to_insert)
+        db.close()
+
+    print()
+    print("Done.")
+
+
 if __name__ == '__main__':
     cups_and_restrictions = (
         ('boulder', ('rock', 'steel', 'ground', 'fighting')),
@@ -86,3 +127,4 @@ if __name__ == '__main__':
     )
     for cup, restrictions in cups_and_restrictions:
         main(restrictions, cup)
+    # debug()

@@ -49,6 +49,3 @@ if __name__ == '__main__':
     results = battle_all_shields(hitmonchan, medicham)
     for result in results:
         print(result)
-    # (358, 642)
-    # (425, 575)
-    # (373, 627)
