@@ -1,9 +1,10 @@
-from multiprocessing import Process, Manager
+from multiprocessing import Process
 from src.battle import battle_all_shields
 from src.gamemaster import path, GameMaster
 from src.pokemon import Pokemon
-from time import time
 from tinydb import TinyDB
+import datetime
+import os
 
 
 def fill_table_for_pokemon(pokemon_indices, all_pokemon, cup, pokemon):
@@ -16,72 +17,19 @@ def fill_table_for_pokemon(pokemon_indices, all_pokemon, cup, pokemon):
             enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
             results = battle_all_shields(ally, enemy)
             to_write.append({'pokemon': [str(ally), str(enemy)], 'result': results})
+        for j in pokemon_indices:
+            if j > index:
+                enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2 = all_pokemon[j]
+                enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
+                results = battle_all_shields(ally, enemy)
+                to_write.append({'pokemon': [str(ally), str(enemy)], 'result': results})
     db = TinyDB(f"{path}/data/databases/{cup}/{pokemon}.info")
     table = db.table('battle_results')
     table.insert_multiple(to_write)
     db.close()
 
 
-def main(type_restrictions: tuple, cup_name: str):
-    start_time = time()
-    gm = GameMaster()
-
-    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(type_restrictions))
-
-    print("Creating Processes...")
-    num_processes = 8
-    indices_lists = []
-    for i in range(num_processes):
-        indices_lists.append([])
-    for i in range(len(all_possibilities)):
-        for j in range(num_processes):
-            if i % num_processes == j:
-                indices_lists[j].append(i)
-    print("Starting Processes...")
-    jobs = []
-    manager = Manager()
-    return_list = manager.list()
-    for indices_list in indices_lists:
-        p = Process(target=fill_table_for_pokemon, args=(indices_list, all_possibilities, return_list))
-        jobs.append(p)
-        p.start()
-
-    for proc in jobs:
-        proc.join()
-
-    pokemon_results = {}
-    for result in return_list:
-        pokemon = result['pokemon']
-        ally_result = result['result']
-        enemy_result = ((x[1], x[0]) for x in ally_result)
-        ally_name = pokemon[0].split(', ')[0]
-        if ally_name not in pokemon_results:
-            pokemon_results[ally_name] = {}
-        if pokemon[0] not in pokemon_results[ally_name]:
-            pokemon_results[ally_name][pokemon[0]] = []
-        pokemon_results[ally_name][pokemon[0]].append({'enemy': pokemon[1], 'results': ally_result})
-        if pokemon[0] == pokemon[1]:
-            continue
-        enemy_name = pokemon[1].split(', ')[0]
-        if enemy_name not in pokemon_results:
-            pokemon_results[enemy_name] = {}
-        if pokemon[1] not in pokemon_results[enemy_name]:
-            pokemon_results[enemy_name][pokemon[1]] = []
-        pokemon_results[enemy_name][pokemon[1]].append({'enemy': pokemon[0], 'results': enemy_result})
-
-    for pokemon in pokemon_results:
-        db = TinyDB(f"{path}/data/databases/{cup_name}/{pokemon}.json")
-        table = db.table('battle_results')
-        table.insert_multiple(pokemon_results[pokemon])
-        db.close()
-
-    elapsed_time = time() - start_time
-    print()
-    print(elapsed_time)
-    print("Done.")
-
-
-def debug(cup, restrictions):
+def build_first_half_of_database(cup, restrictions):
     gm = GameMaster()
 
     all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(restrictions))
@@ -104,19 +52,56 @@ def debug(cup, restrictions):
         for p in range(min(num_processes, len(all_pokemon) - i)):
             jobs[p].join()
 
-        print(f"{round(100 * (i + 7) / len(all_pokemon), 1)}% finished.")
+        print(f"{datetime.datetime.now()}: {percent_calculator(len(all_pokemon), i + 8)}% finished.")
 
     print()
     print("Done.")
 
 
+def build_second_half_of_database(cup):
+    cup_directory = f"{path}/data/databases/{cup}"
+    all_db_files = os.listdir(cup_directory)
+    for i in range(len(all_db_files)):
+        pokemon_to_search_for = all_db_files[i].split(".")[0]
+        to_write = []
+        for j in range(i + 1, len(all_db_files)):
+            db = TinyDB(f"{cup_directory}/{all_db_files[j]}")
+            table = db.table('battle_simulations')
+            docs = table.all()
+            for doc in docs:
+                if pokemon_to_search_for == doc['pokemon'][1].split(', '):
+                    pokemon = [doc['pokemon'][1], doc['pokemon'][0]]
+                    result = []
+                    for r in doc['result']:
+                        result.append((r[1], r[0]))
+                    to_write.append({'pokemon': pokemon, 'result': result})
+            db.close()
+        if to_write:
+            db = TinyDB(f'{cup_directory}/{all_db_files[i]}')
+            table = db.table('battle_simulations')
+            table.insert_multiple(to_write)
+            db.close()
+
+
+def percent_calculator(total_pokemon, current_index):
+    current_finished = 0
+    total = 0
+    for i in range(total_pokemon):
+        if i <= current_index:
+            current_finished += (total_pokemon - i)
+        total += (total_pokemon - i)
+    return round(100 * current_finished / total, 1)
+
+
 if __name__ == '__main__':
-    # cups_and_restrictions = (
-    #     ('boulder', ('rock', 'steel', 'ground', 'fighting')),
-    #     ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
-    #     ('tempest', ('ground', 'ice', 'electric', 'flying')),
-    #     ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
-    # )
-    # for cup, restrictions in cups_and_restrictions:
-    #     main(restrictions, cup)
-    debug()
+    cups_and_restrictions = (
+        ('boulder', ('rock', 'steel', 'ground', 'fighting')),
+        ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
+        ('tempest', ('ground', 'ice', 'electric', 'flying')),
+        ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
+    )
+    for i in range(3):
+        cup, restrictions = cups_and_restrictions[i]
+        build_first_half_of_database(cup, restrictions)
+    for cup, restrictions in cups_and_restrictions:
+        build_second_half_of_database(cup)

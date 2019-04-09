@@ -5,7 +5,7 @@ from copy import deepcopy
 import os
 
 
-def calculate_meta_with_subsetting(cup_directory: str):
+def calculate_meta(cup_directory: str):
     matrix = {}
     for db_file in os.listdir(cup_directory):
         db = TinyDB(os.path.join(cup_directory, db_file))
