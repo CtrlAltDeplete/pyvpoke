@@ -219,7 +219,12 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 def main():
-    yeet = ('boulder', ('rock', 'fighting', 'steel', 'ground'), 'twilight', ('fairy', 'poison', 'dark', 'ghost'), 'tempest', ('flying', 'electric', 'ice', 'ground'), 'kingdom', ('steel', 'ice', 'fire', 'dragon'))
+    yeet = (
+        'boulder', ('rock', 'fighting', 'steel', 'ground'),
+        'twilight', ('fairy', 'poison', 'dark', 'ghost'),
+        'tempest', ('flying', 'electric', 'ice', 'ground'),
+        'kingdom', ('steel', 'ice', 'fire', 'dragon')
+    )
     # jobs = []
     # for i in range(4):
     #     jobs.append(Process(target=calculate_meta, args=(yeet[i * 2],)))
@@ -227,13 +232,14 @@ def main():
     # for i in range(4):
     #     jobs[i].join()
     #     print(f"Meta for {yeet[i * 2]} finished.")
-    jobs = []
-    for i in range(4):
-        jobs.append(Process(target=fill_all_card_info, args=(yeet[i * 2], yeet[i * 2 + 1])))
-        jobs[i].start()
-    for i in range(4):
-        jobs[i].join()
-        print(f"Card DB for {yeet[i * 2]} finished.")
+    # jobs = []
+    # for i in range(4):
+    #     jobs.append(Process(target=fill_all_card_info, args=(yeet[i * 2], yeet[i * 2 + 1])))
+    #     jobs[i].start()
+    # for i in range(4):
+    #     jobs[i].join()
+    #     print(f"Card DB for {yeet[i * 2]} finished.")
+    calculate_meta(f"{path}/data/databases/{yeet[0]}")
 
 
 if __name__ == '__main__':

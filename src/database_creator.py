@@ -61,26 +61,27 @@ def build_first_half_of_database(cup, restrictions):
 def build_second_half_of_database(cup):
     cup_directory = f"{path}/data/databases/{cup}"
     all_db_files = os.listdir(cup_directory)
-    for i in range(len(all_db_files)):
+    for i in range(len(all_db_files) - 1, -1, -1):
         pokemon_to_search_for = all_db_files[i].split(".")[0]
-        to_write = []
-        for j in range(i + 1, len(all_db_files)):
+        for j in range(0, i, 1):
             db = TinyDB(f"{cup_directory}/{all_db_files[j]}")
-            table = db.table('battle_simulations')
+            table = db.table('battle_results')
             docs = table.all()
+            to_write = []
             for doc in docs:
-                if pokemon_to_search_for == doc['pokemon'][1].split(', '):
+                if pokemon_to_search_for == doc['pokemon'][1].split(', ')[0]:
                     pokemon = [doc['pokemon'][1], doc['pokemon'][0]]
                     result = []
                     for r in doc['result']:
                         result.append((r[1], r[0]))
                     to_write.append({'pokemon': pokemon, 'result': result})
             db.close()
-        if to_write:
-            db = TinyDB(f'{cup_directory}/{all_db_files[i]}')
-            table = db.table('battle_simulations')
-            table.insert_multiple(to_write)
-            db.close()
+            if to_write:
+                db = TinyDB(f'{cup_directory}/{all_db_files[i]}')
+                table = db.table('battle_results')
+                table.insert_multiple(to_write)
+                db.close()
+        print(f"{percent_calculator(len(all_db_files), len(all_db_files) - i)}% Finished.")
 
 
 def percent_calculator(total_pokemon, current_index):
@@ -95,13 +96,13 @@ def percent_calculator(total_pokemon, current_index):
 
 if __name__ == '__main__':
     cups_and_restrictions = (
-        ('boulder', ('rock', 'steel', 'ground', 'fighting')),
+        # ('boulder', ('rock', 'steel', 'ground', 'fighting')),
         ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
-        ('tempest', ('ground', 'ice', 'electric', 'flying')),
-        ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
+        # ('tempest', ('ground', 'ice', 'electric', 'flying')),
+        # ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
     )
-    for i in range(3):
-        cup, restrictions = cups_and_restrictions[i]
-        build_first_half_of_database(cup, restrictions)
+    # for i in range(3):
+    #     cup, restrictions = cups_and_restrictions[i]
+    #     build_first_half_of_database(cup, restrictions)
     for cup, restrictions in cups_and_restrictions:
         build_second_half_of_database(cup)
