@@ -63,6 +63,21 @@ def build_second_half_of_database(cup):
     all_db_files = os.listdir(cup_directory)
     for i in range(len(all_db_files) - 1, -1, -1):
         pokemon_to_search_for = all_db_files[i].split(".")[0]
+        db = TinyDB(f"{cup_directory}/{all_db_files[i]}")
+        table = db.table('battle_results')
+        docs = table.all()
+        to_write = []
+        for doc in docs:
+            ally = doc['pokemon'][0]
+            enemy = doc['pokemon'][1]
+            if ally != enemy and ally.split(', ')[0] == enemy.split(', ')[0]:
+                result = []
+                for r in doc['result']:
+                    result.append((r[1], r[0]))
+                to_write.append({'pokemon': [enemy, ally], 'result': result})
+        if to_write:
+            table.insert_multiple(to_write)
+        db.close()
         for j in range(0, i, 1):
             db = TinyDB(f"{cup_directory}/{all_db_files[j]}")
             table = db.table('battle_results')

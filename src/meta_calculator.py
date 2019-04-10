@@ -75,6 +75,16 @@ def weight_matrix_with_removals(matrix: dict):
     for ally in matrix:
         victories[ally] = []
         for enemy in matrix:
+            try:
+                matrix[ally][enemy]
+            except KeyError:
+                print(f"No Entry: matrix[{ally}][{enemy}]")
+                exit(69)
+            try:
+                matrix[enemy][ally]
+            except KeyError:
+                print(f"No Entry: matrix[{enemy}][{ally}]")
+                exit(69)
             if matrix[ally][enemy] > matrix[enemy][ally]:
                 victories[ally].append(enemy)
 
@@ -85,6 +95,9 @@ def weight_matrix_with_removals(matrix: dict):
             to_ignore.append(pokemon)
         elif pokemon.split(', ')[0] in ignored:
             to_ignore.append(pokemon)
+
+    if len(to_ignore) + 1 >= len(matrix.keys()):
+        return matrix, list(matrix.keys())
 
     for ally in matrix:
         column = 0
@@ -97,6 +110,9 @@ def weight_matrix_with_removals(matrix: dict):
     for ally in matrix:
         row = 0
         for enemy in matrix:
+            if matrix[ally]['column'] == 0:
+                print(matrix)
+                exit(69)
             row += matrix[ally][enemy] / matrix[ally]['column']
         matrix[ally]['row'] = row
         total += row
