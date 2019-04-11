@@ -18,7 +18,7 @@ def fill_table_for_pokemon(pokemon_indices, all_pokemon, cup, pokemon):
             results = battle_all_shields(ally, enemy)
             to_write.append({'pokemon': [str(ally), str(enemy)], 'result': results})
         for j in pokemon_indices:
-            if j > index:
+            if j < index:
                 enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2 = all_pokemon[j]
                 enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
                 results = battle_all_shields(ally, enemy)
@@ -62,7 +62,7 @@ def build_second_half_of_database(cup):
     cup_directory = f"{path}/data/databases/{cup}"
     all_db_files = os.listdir(cup_directory)
     for i in range(len(all_db_files) - 1, -1, -1):
-        pokemon_to_search_for = all_db_files[i].split(".")[0]
+        pokemon_to_search_for = '.'.join(all_db_files[i].split(".")[:-1])
         db = TinyDB(f"{cup_directory}/{all_db_files[i]}")
         table = db.table('battle_results')
         docs = table.all()

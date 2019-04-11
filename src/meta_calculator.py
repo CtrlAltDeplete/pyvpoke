@@ -16,6 +16,10 @@ def calculate_meta(cup_directory: str):
             if ally not in matrix:
                 matrix[ally] = {}
             matrix[ally][enemy] = sum(r[0] for r in results) / len(results)
+            if ally.split(', ')[0] == enemy.split(', ')[0]:
+                if enemy not in matrix:
+                    matrix[enemy] = {}
+                matrix[enemy][ally] = sum(r[1] for r in results) / len(results)
         db.close()
 
     to_remove = []
@@ -56,11 +60,17 @@ def calculate_meta(cup_directory: str):
 
     for pokemon in rankings:
         rankings[pokemon]['absolute_rank'] *= 100 / float(len(rankings))
-        name, fast, charge_1, charge_2 = pokemon.split(', ')
-        rankings[pokemon]['name'] = name
-        rankings[pokemon]['fast'] = fast
-        rankings[pokemon]['charge_1'] = charge_1
-        rankings[pokemon]['charge_2'] = charge_2
+        if len(pokemon.split(', ')) == 4:
+            name, fast, charge_1, charge_2 = pokemon.split(', ')
+            rankings[pokemon]['name'] = name
+            rankings[pokemon]['fast'] = fast
+            rankings[pokemon]['charge_1'] = charge_1
+            rankings[pokemon]['charge_2'] = charge_2
+        else:
+            name, fast, charge_1 = pokemon.split(', ')
+            rankings[pokemon]['name'] = name
+            rankings[pokemon]['fast'] = fast
+            rankings[pokemon]['charge_1'] = charge_1
 
     rankings = [rankings[k] for k in rankings]
 
@@ -230,6 +240,16 @@ def ordered_movesets_for_pokemon(cup: str, pokemon: str):
     return data
 
 
+def calculate_mean_and_sd(cup: str):
+    all_ranked_mons = ordered_top_pokemon(cup)
+    ranks = []
+    for mon in all_ranked_mons:
+        ranks.append(mon['absolute_rank'])
+    mean = sum(ranks) / len(ranks)
+    sd = (sum([(x - mean) ** 2 for x in ranks]) / len(ranks)) ** 0.5
+    return mean, sd
+
+
 def scale_ranking(rank, min_rank, max_rank):
     return round((rank - min_rank) * 100 / (max_rank - min_rank), 1)
 
@@ -259,4 +279,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    # calculate_meta(f"{path}/data/databases/kingdom")
+    mean, sd = calculate_mean_and_sd('boulder')
+    for mon in ordered_top_pokemon('boulder', mean + sd + sd):
+        print(mon)
