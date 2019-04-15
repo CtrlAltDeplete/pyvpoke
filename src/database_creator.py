@@ -25,11 +25,13 @@ def fill_table_for_pokemon(pokemon, all_pokemon, cup):
 
 def build_database(cup, restrictions):
     gm = GameMaster()
-
-    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(restrictions))[:10]
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(restrictions))
+    # all_possibilities = []
+    # for pokemon in ['Blastoise', 'Charizard', 'Venusaur']:
+    #     all_possibilities.extend([x for x in gm.all_movesets_for_pokemon(pokemon)])
 
     print("Starting Processes...")
-    num_processes = 2
+    num_processes = 6
     columns = (
         ' '.join(('id', 'INTEGER PRIMARY KEY AUTOINCREMENT')),
         ' '.join(('ally', 'TEXT')),
@@ -69,18 +71,12 @@ def build_database(cup, restrictions):
 
 
 def percent_calculator(total_pokemon, current_index):
-    current_finished = 0
-    total = 0
-    for i in range(total_pokemon):
-        if i <= current_index:
-            current_finished += (total_pokemon - i)
-        total += (total_pokemon - i)
-    return round(100 * current_finished / total, 1)
+    return round(100 * current_index / total_pokemon, 1)
 
 
 if __name__ == '__main__':
     cups_and_restrictions = (
-        ('boulder', ('rock', 'steel', 'ground', 'fighting')),
+        # ('boulder', ('rock', 'steel', 'ground', 'fighting')),
         ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
         ('tempest', ('ground', 'ice', 'electric', 'flying')),
         ('kingdom', ('fire', 'steel', 'ice', 'dragon'))

@@ -1,36 +1,32 @@
-from src.gamemaster import path, banned, ignored, GameMaster
-from tinydb import TinyDB, Query
-from multiprocessing import Process
+from src.gamemaster import path, banned, GameMaster
+import sqlite3
 from copy import deepcopy
-import os
 
 
-def calculate_meta(cup_directory: str):
+def calculate_meta(cup: str):
+    # Create a matrix of all battle results
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM battle_sims')
+    rows = cur.fetchall()
+    conn.close()
+
     matrix = {}
-    for db_file in os.listdir(cup_directory):
-        db = TinyDB(os.path.join(cup_directory, db_file))
-        sim_table = db.table('battle_results')
-        for doc in sim_table.all():
-            ally, enemy = doc['pokemon']
-            results = doc['result']
-            if ally not in matrix:
-                matrix[ally] = {}
-            matrix[ally][enemy] = sum(r[0] for r in results) / len(results)
-            if ally.split(', ')[0] == enemy.split(', ')[0]:
-                if enemy not in matrix:
-                    matrix[enemy] = {}
-                matrix[enemy][ally] = sum(r[1] for r in results) / len(results)
-        db.close()
+    for row in rows:
+        row_id, ally, enemy = row[:3]
+        scores = row[3:]
+        if ally not in matrix:
+            matrix[ally] = {}
+        matrix[ally][enemy] = (scores[0] + scores[4] + scores[8] + sum(scores)) / 2
 
     to_remove = []
     for pokemon in matrix:
         if any([ban in pokemon for ban in banned]):
             to_remove.append(pokemon)
-    to_remove = set(to_remove)
     for pokemon in to_remove:
         matrix.pop(pokemon, None)
-        for pokemon2 in matrix:
-            matrix[pokemon2].pop(pokemon, None)
+        for pokemon_2 in matrix:
+            matrix[pokemon_2].pop(pokemon, None)
 
     rankings = {}
     current_rank = len(matrix)
@@ -40,26 +36,26 @@ def calculate_meta(cup_directory: str):
     while current_rank > 0:
         matrix, to_remove = weight_matrix_with_removals(matrix)
         for pokemon in to_remove:
-            rankings[pokemon] = {"absolute_rank": current_rank}
+            rankings[pokemon] = {'absolute_rank': current_rank}
             matrix.pop(pokemon, None)
-            for pokemon2 in matrix:
-                matrix[pokemon2].pop(pokemon, None)
+            for pokemon_2 in matrix:
+                matrix[pokemon_2].pop(pokemon, None)
         current_rank -= len(to_remove)
 
     print("Data analyzed, writing to database...")
 
     r = 1
-    for i in range(len(rankings)):
+    for i in range(len(rankings) + 1):
         for pokemon in rankings:
             if rankings[pokemon]['absolute_rank'] == i and 'relative_rank' not in rankings[pokemon]:
                 rankings[pokemon]['relative_rank'] = r
                 r += 1
-                for pokemon2 in rankings:
-                    if pokemon.split(', ')[0] == pokemon2.split(', ')[0] and not pokemon2 == pokemon:
-                        rankings[pokemon2]['relative_rank'] = 0
+                for pokemon_2 in rankings:
+                    if pokemon.split(', ')[0] == pokemon_2.split(', ')[0] and not pokemon_2 == pokemon:
+                        rankings[pokemon_2]['relative_rank'] = 0
 
     for pokemon in rankings:
-        rankings[pokemon]['absolute_rank'] *= 100 / float(len(rankings))
+        rankings[pokemon]['absolute_rank'] = round(100 * rankings[pokemon]['absolute_rank'] / len(rankings), 1)
         if len(pokemon.split(', ')) == 4:
             name, fast, charge_1, charge_2 = pokemon.split(', ')
             rankings[pokemon]['name'] = name
@@ -71,13 +67,28 @@ def calculate_meta(cup_directory: str):
             rankings[pokemon]['name'] = name
             rankings[pokemon]['fast'] = fast
             rankings[pokemon]['charge_1'] = charge_1
+            rankings[pokemon]['charge_2'] = None
 
-    rankings = [rankings[k] for k in rankings]
+    rankings = [(rankings[k]['name'], rankings[k]['fast'], rankings[k]['charge_1'], rankings[k]['charge_2'], rankings[k]['absolute_rank'], rankings[k]['relative_rank']) for k in rankings]
 
-    db = TinyDB(f"{cup_directory}/meta.rankings")
-    table = db.table('meta')
-    table.insert_multiple(rankings)
-    db.close()
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+    columns = (
+        ' '.join(('id', 'INTEGER PRIMARY KEY AUTOINCREMENT')),
+        ' '.join(('pokemon', 'TEXT')),
+        ' '.join(('fast', 'TEXT')),
+        ' '.join(('charge_1', 'TEXT')),
+        ' '.join(('charge_2', 'TEXT')),
+        ' '.join(('absolute_rank', 'REAL')),
+        ' '.join(('relative_rank', 'REAL'))
+    )
+    command = f"CREATE TABLE rankings ({', '.join(columns)})"
+    cur.execute(command)
+
+    command = "INSERT INTO rankings(pokemon, fast, charge_1, charge_2, absolute_rank, relative_rank) VALUES (?,?,?,?,?,?)"
+    cur.executemany(command, rankings)
+    conn.commit()
+    conn.close()
 
 
 def weight_matrix_with_removals(matrix: dict):
@@ -85,16 +96,6 @@ def weight_matrix_with_removals(matrix: dict):
     for ally in matrix:
         victories[ally] = []
         for enemy in matrix:
-            try:
-                matrix[ally][enemy]
-            except KeyError:
-                print(f"No Entry: matrix[{ally}][{enemy}]")
-                exit(69)
-            try:
-                matrix[enemy][ally]
-            except KeyError:
-                print(f"No Entry: matrix[{enemy}][{ally}]")
-                exit(69)
             if matrix[ally][enemy] > matrix[enemy][ally]:
                 victories[ally].append(enemy)
 
@@ -102,8 +103,6 @@ def weight_matrix_with_removals(matrix: dict):
     victories = [(pokemon, set(v)) for pokemon, v in victories.items()]
     for pokemon, v in victories:
         if any(v.issubset(w[1]) and v != w[1] for w in victories):
-            to_ignore.append(pokemon)
-        elif pokemon.split(', ')[0] in ignored:
             to_ignore.append(pokemon)
 
     if len(to_ignore) + 1 >= len(matrix.keys()):
@@ -211,76 +210,52 @@ def fill_card_info(ordered_pokemon, cup_types: tuple, pokemon: str, fast: str, c
 
 
 def ordered_top_pokemon(cup: str, percentile_limit: int = 0):
-    query = Query()
-    db = TinyDB(f"{path}/data/databases/{cup}/meta.rankings")
-    table = db.table('meta')
-    data = table.search(query.relative_rank != 0)
-    db.close()
-    data = [x for x in data if 100 - x['absolute_rank'] >= percentile_limit]
-    data.sort(key=lambda k: k['relative_rank'])
-    return data
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+    command = f"SELECT pokemon FROM rankings WHERE relative_rank > 0 and absolute_rank <= 100 - {percentile_limit} ORDER BY relative_rank"
+    cur.execute(command)
+    rows = cur.fetchall()
+    conn.close()
+    return [x[0] for x in rows]
 
 
-def all_pokemon_movesets(cup: str):
-    db = TinyDB(f"{path}/data/databases/{cup}/meta.rankings")
-    table = db.table('meta')
-    data = table.all()
-    db.close()
-    data.sort(key=lambda k: k['absolute_rank'])
-    return data
+def all_pokemon_movesets(cup: str, percentile_limit: int = 0):
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+    command = f"SELECT pokemon FROM rankings WHERE absolute_rank <= 100 - {percentile_limit} ORDER BY absolute_rank"
+    cur.execute(command)
+    rows = cur.fetchall()
+    conn.close()
+    return [x[0] for x in rows]
 
 
 def ordered_movesets_for_pokemon(cup: str, pokemon: str):
-    query = Query()
-    db = TinyDB(f"{path}/data/databases/{cup}/meta.rankings")
-    table = db.table('meta')
-    data = table.search(query.name == pokemon)
-    data = [(d['absolute_rank'], d['fast'], d['charge_1'], d['charge_2']) for d in data]
-    data.sort(key=lambda k: k[0])
-    return data
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+    command = f"SELECT fast, charge_1, charge_2, absolute_rank FROM rankings WHERE pokemon = {pokemon} ORDER BY relative_rank"
+    cur.execute(command)
+    rows = cur.fetchall()
+    conn.close()
+    return rows
 
 
 def calculate_mean_and_sd(cup: str):
-    all_ranked_mons = ordered_top_pokemon(cup)
-    ranks = []
-    for mon in all_ranked_mons:
-        ranks.append(mon['absolute_rank'])
-    mean = sum(ranks) / len(ranks)
-    sd = (sum([(x - mean) ** 2 for x in ranks]) / len(ranks)) ** 0.5
-    return mean, sd
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+    command = "SELECT absolute_rank FROM rankings"
+    cur.execute(command)
+    scores = [x[0] for x in cur.fetchall()]
+    conn.close()
+    mean = sum(scores) / len(scores)
+    sd = (sum([(x - mean) ** 2 for x in scores]) / len(scores)) ** 0.5
+    return mean, sd / 2
 
 
 def scale_ranking(rank, min_rank, max_rank):
     return round((rank - min_rank) * 100 / (max_rank - min_rank), 1)
 
 
-def main():
-    yeet = (
-        'boulder', ('rock', 'fighting', 'steel', 'ground'),
-        'twilight', ('fairy', 'poison', 'dark', 'ghost'),
-        'tempest', ('flying', 'electric', 'ice', 'ground'),
-        'kingdom', ('steel', 'ice', 'fire', 'dragon')
-    )
-    # jobs = []
-    # for i in range(4):
-    #     jobs.append(Process(target=calculate_meta, args=(yeet[i * 2],)))
-    #     jobs[i].start()
-    # for i in range(4):
-    #     jobs[i].join()
-    #     print(f"Meta for {yeet[i * 2]} finished.")
-    # jobs = []
-    # for i in range(4):
-    #     jobs.append(Process(target=fill_all_card_info, args=(yeet[i * 2], yeet[i * 2 + 1])))
-    #     jobs[i].start()
-    # for i in range(4):
-    #     jobs[i].join()
-    #     print(f"Card DB for {yeet[i * 2]} finished.")
-    calculate_meta(f"{path}/data/databases/{yeet[0]}")
-
-
 if __name__ == '__main__':
-    # main()
-    # calculate_meta(f"{path}/data/databases/kingdom")
-    mean, sd = calculate_mean_and_sd('boulder')
-    for mon in ordered_top_pokemon('boulder', mean + sd + sd):
-        print(mon)
+    mean, sd = calculate_mean_and_sd('kingdom')
+    for pokemon in ordered_top_pokemon('kingdom', mean + 3 * sd):
+        print(pokemon)
