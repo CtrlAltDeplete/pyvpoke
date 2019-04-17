@@ -1,102 +1,86 @@
-from multiprocessing import Process, Manager
+from multiprocessing import Process
 from src.battle import battle_all_shields
 from src.gamemaster import path, GameMaster
 from src.pokemon import Pokemon
-from time import time
-from tinydb import TinyDB
+import sqlite3
+import datetime
 
 
-def fill_table_for_pokemon(pokemon_indices, all_pokemon, return_list):
-    previous_percent = 0
-    total = sum([x * (x - 1) / 2 for x in pokemon_indices])
-    current = 0
-
-    for index in pokemon_indices:
-        ally_name, ally_fast, ally_charge_1, ally_charge_2 = all_pokemon[index]
-        ally = Pokemon(ally_name, ally_fast, ally_charge_1, ally_charge_2)
-        for k in range(index, len(all_pokemon)):
-            enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2 = all_pokemon[k]
-            enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
-            results = battle_all_shields(ally, enemy)
-            return_list.append({'pokemon': [str(ally), str(enemy)], 'result': results})
-            current += 1
-            if round(100 * current / total) > 1 + previous_percent:
-                previous_percent = round(100 * len(return_list) / total)
-                print(f"Thread {pokemon_indices[0]}: {previous_percent}% complete.")
-    return return_list
-
-
-def add_pokemon_move(cup_name: str, type_restrictions: tuple, pokemon: str, move_name: str):
-    gm = GameMaster()
-    all_possibilites = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(type_restrictions))
-
-    indices_list = []
-    for i in range(len(all_possibilites)):
-        if pokemon in all_possibilites[i] and move_name in all_possibilites[i]:
-            indices_list.append(i)
+def fill_table_for_pokemon(pokemon, all_pokemon, cup):
+    ally_name, ally_fast, ally_charge_1, ally_charge_2 = pokemon
+    ally = Pokemon(ally_name, ally_fast, ally_charge_1, ally_charge_2)
     to_write = []
-    for index in indices_list:
-        ally_name, ally_fast, ally_charge_1, ally_charge_2 = all_possibilites[index]
-        ally = Pokemon(ally_name, ally_fast, ally_charge_1, ally_charge_2)
-        for k in range(len(all_possibilites)):
-            if k not in indices_list[:indices_list.index(index)]:
-                enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2 = all_possibilites[k]
-                enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
-                results = battle_all_shields(ally, enemy)
-                to_write.append({'pokemon': [str(ally), str(enemy)], 'result': results})
-    db = TinyDB(f"{path}/data/databases/{cup_name}.json")
-    table = db.table('battle_results')
-    table.insert_multiple(to_write)
-    db.close()
-    print(f"Finished {pokemon} with {move_name}.")
+    for enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2 in all_pokemon:
+        enemy = Pokemon(enemy_name, enemy_fast, enemy_charge_1, enemy_charge_2)
+        results = battle_all_shields(ally, enemy)
+        to_write.append([str(ally), str(enemy)] + list(x[0] for x in results))
+
+    command = "INSERT INTO battle_sims(ally, enemy, zeroVzero, zeroVone, zeroVtwo, oneVzero, oneVone, oneVtwo, twoVzero, twoVone, twoVtwo) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+    cur.executemany(command, to_write)
+    conn.commit()
+    conn.close()
 
 
-def main(type_restrictions: tuple, cup_name: str):
-    start_time = time()
+def build_database(cup, restrictions):
     gm = GameMaster()
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(restrictions))
+    # all_possibilities = []
+    # for pokemon in ['Blastoise', 'Charizard', 'Venusaur']:
+    #     all_possibilities.extend([x for x in gm.all_movesets_for_pokemon(pokemon)])
 
-    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(type_restrictions))
-
-    print("Creating Processes...")
-    num_processes = 8
-    indices_lists = []
-    for i in range(num_processes):
-        indices_lists.append([])
-    for i in range(len(all_possibilities)):
-        for j in range(num_processes):
-            if i % num_processes == j:
-                indices_lists[j].append(i)
     print("Starting Processes...")
-    jobs = []
-    manager = Manager()
-    return_list = manager.list()
-    for indices_list in indices_lists:
-        p = Process(target=fill_table_for_pokemon, args=(indices_list, all_possibilities, return_list))
-        jobs.append(p)
-        p.start()
+    num_processes = 6
+    columns = (
+        ' '.join(('id', 'INTEGER PRIMARY KEY AUTOINCREMENT')),
+        ' '.join(('ally', 'TEXT')),
+        ' '.join(('enemy', 'TEXT')),
+        ' '.join(('zeroVzero', 'INTEGER')),
+        ' '.join(('zeroVone', 'INTEGER')),
+        ' '.join(('zeroVtwo', 'INTEGER')),
+        ' '.join(('oneVzero', 'INTEGER')),
+        ' '.join(('oneVone', 'INTEGER')),
+        ' '.join(('oneVtwo', 'INTEGER')),
+        ' '.join(('twoVzero', 'INTEGER')),
+        ' '.join(('twoVone', 'INTEGER')),
+        ' '.join(('twoVtwo', 'INTEGER')),
+    )
+    command = f"CREATE TABLE battle_sims ({', '.join(columns)})"
 
-    for proc in jobs:
-        proc.join()
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+    cur.execute(command)
+    conn.commit()
+    conn.close()
 
-    db = TinyDB(f"{path}/data/databases/{cup_name}.json")
-    table = db.table('battle_results')
+    for i in range(0, len(all_possibilities), num_processes):
+        jobs = []
+        for j in range(min(num_processes, len(all_possibilities) - i)):
+            pokemon = all_possibilities[i + j]
+            jobs.append(Process(target=fill_table_for_pokemon, args=(pokemon, all_possibilities, cup)))
+            jobs[j].start()
 
-    table.insert_multiple(return_list)
+        for p in range(min(num_processes, len(all_possibilities) - i)):
+            jobs[p].join()
 
-    elapsed_time = time() - start_time
+        print(f"{datetime.datetime.now()}: {percent_calculator(len(all_possibilities), i + 8)}% finished.")
+
     print()
-    print(len(table))
-    print(elapsed_time)
     print("Done.")
-    db.close()
+
+
+def percent_calculator(total_pokemon, current_index):
+    return round(100 * current_index / total_pokemon, 1)
 
 
 if __name__ == '__main__':
     cups_and_restrictions = (
-        ('boulder', ('rock', 'steel', 'ground', 'fighting')),
-        # ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
-        # ('tempest', ('ground', 'ice', 'electric', 'flying')),
-        # ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
+        # ('boulder', ('rock', 'steel', 'ground', 'fighting')),
+        ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
+        ('tempest', ('ground', 'ice', 'electric', 'flying')),
+        ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
     )
-    for cup, restrictions in cups_and_restrictions:
-        main(restrictions, cup)
+    for i in range(4):
+        cup, restrictions = cups_and_restrictions[i]
+        build_database(cup, restrictions)

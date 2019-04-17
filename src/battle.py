@@ -1,9 +1,9 @@
 from src.pokemon import Pokemon
 
 
-def battle(ally: Pokemon, enemy: Pokemon, shields: int):
-    ally.starting_shields = shields
-    enemy.starting_shields = shields
+def battle(ally: Pokemon, enemy: Pokemon, ally_shields: int, enemy_shields: int):
+    ally.starting_shields = ally_shields
+    enemy.starting_shields = enemy_shields
 
     ally.reset()
     enemy.reset()
@@ -40,7 +40,11 @@ def battle(ally: Pokemon, enemy: Pokemon, shields: int):
 
 
 def battle_all_shields(ally: Pokemon, enemy: Pokemon):
-    return [battle(ally, enemy, i) for i in range(3)]
+    to_return = []
+    for ally_shields in range(3):
+        for enemy_shields in range(3):
+            to_return.append(battle(ally, enemy, ally_shields, enemy_shields))
+    return to_return
 
 
 if __name__ == '__main__':
@@ -49,6 +53,3 @@ if __name__ == '__main__':
     results = battle_all_shields(hitmonchan, medicham)
     for result in results:
         print(result)
-    # (358, 642)
-    # (425, 575)
-    # (373, 627)

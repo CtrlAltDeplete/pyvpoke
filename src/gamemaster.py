@@ -22,28 +22,9 @@ DRAGON = 'dragon'
 DARK = 'dark'
 FAIRY = 'fairy'
 banned = ('Mewtwo', 'Giratina (Altered Forme)', 'Groudon', 'Kygore', 'Rayquaza', 'Garchomp', 'Latios', 'Latias',
-          'Palkia', 'Dialga', 'Heatran', 'Giratina (Origin Forme)', 'Jirachi', 'Gastrodon', 'Shaymin (Sky Forme)',
-          'Shaymin (Lan Forme)', 'Rotom', 'Magnezone', 'Gallade', 'Probopass', 'Gabite')
-type_to_color = {
-    NORMAL: "A8A77A",
-    FIGHTING: "C22E28",
-    FLYING: "A98FF3",
-    POISON: "A33EA1",
-    GROUND: "E2BF65",
-    ROCK: "B6A136",
-    BUG: "A6B91A",
-    GHOST: "735797",
-    STEEL: "B7B7CE",
-    FIRE: "EE8130",
-    WATER: "6390F0",
-    GRASS: "7AC74C",
-    ELECTRIC: "F7D02C",
-    PSYCHIC: "F95587",
-    ICE: "96D9D6",
-    DRAGON: "6F35FC",
-    DARK: "705746",
-    FAIRY: "D685AD"
-}
+          'Palkia', 'Dialga', 'Heatran', 'Giratina (Origin Forme)', 'Gastrodon', 'Shaymin (Sky Forme)',
+          'Shaymin (Lan Forme)', 'Rotom', 'Gallade', 'Gabite', 'Jirachi', 'Mew', 'Magnezone', 'Probopass')
+# ignored = ('Mew', 'Magnezone', 'Probopass')
 
 
 class GameMaster:
@@ -96,12 +77,23 @@ class GameMaster:
             if any([t in type_restriction for t in pokemon_data['types']]):
                 yield pokemon
 
+    def all_movesets_for_pokemon(self, pokemon):
+        pokemon_data = self.get_pokemon(pokemon)
+        for fast_move in pokemon_data['fast']:
+            for i in range(len(pokemon_data['charge'])):
+                charge_1 = pokemon_data['charge'][i]
+                yield pokemon, fast_move, charge_1, None
+                for j in range(i + 1, len(pokemon_data['charge'])):
+                    charge_2 = pokemon_data['charge'][j]
+                    yield pokemon, fast_move, charge_1, charge_2
+
     def iter_pokemon_move_set_combos(self, type_restriction=None):
         for pokemon in self.iter_pokemon(type_restriction):
             pokemon_data = self.get_pokemon(pokemon)
             for fast_move in pokemon_data['fast']:
                 for i in range(len(pokemon_data['charge'])):
                     charge_1 = pokemon_data['charge'][i]
+                    yield pokemon, fast_move, charge_1, None
                     for j in range(i + 1, len(pokemon_data['charge'])):
                         charge_2 = pokemon_data['charge'][j]
                         yield pokemon, fast_move, charge_1, charge_2
