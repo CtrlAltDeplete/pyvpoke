@@ -11,6 +11,8 @@ def calculate_meta(cup: str):
     rows = cur.fetchall()
     conn.close()
 
+    print("Assembling matrix...")
+
     matrix = {}
     for row in rows:
         row_id, ally, enemy = row[:3]
@@ -29,47 +31,51 @@ def calculate_meta(cup: str):
             matrix[pokemon_2].pop(pokemon, None)
 
     rankings = {}
-    current_rank = len(matrix)
+    current_rank = 1
 
-    print("Matrix filled, analyzing data...")
+    print("Calculating rankings...")
 
-    while current_rank > 0:
+    max_rank = len(matrix)
+    while current_rank <= max_rank:
         matrix, to_remove = weight_matrix_with_removals(matrix)
         for pokemon in to_remove:
             rankings[pokemon] = {'absolute_rank': current_rank}
             matrix.pop(pokemon, None)
             for pokemon_2 in matrix:
                 matrix[pokemon_2].pop(pokemon, None)
-        current_rank -= len(to_remove)
+            current_rank += 1
+        print(current_rank)
 
-    print("Data analyzed, writing to database...")
-
-    r = 1
-    for i in range(len(rankings) + 1):
-        for pokemon in rankings:
-            if rankings[pokemon]['absolute_rank'] == i and 'relative_rank' not in rankings[pokemon]:
-                rankings[pokemon]['relative_rank'] = r
-                r += 1
-                for pokemon_2 in rankings:
-                    if pokemon.split(', ')[0] == pokemon_2.split(', ')[0] and not pokemon_2 == pokemon:
-                        rankings[pokemon_2]['relative_rank'] = 0
+    results = {}
+    all_pokemon = {}
 
     for pokemon in rankings:
-        rankings[pokemon]['absolute_rank'] = round(100 * rankings[pokemon]['absolute_rank'] / len(rankings), 1)
+        results[pokemon] = {}
         if len(pokemon.split(', ')) == 4:
             name, fast, charge_1, charge_2 = pokemon.split(', ')
-            rankings[pokemon]['name'] = name
-            rankings[pokemon]['fast'] = fast
-            rankings[pokemon]['charge_1'] = charge_1
-            rankings[pokemon]['charge_2'] = charge_2
+            results[pokemon]['name'] = name
+            results[pokemon]['fast'] = fast
+            results[pokemon]['charge_1'] = charge_1
+            results[pokemon]['charge_2'] = charge_2
         else:
             name, fast, charge_1 = pokemon.split(', ')
-            rankings[pokemon]['name'] = name
-            rankings[pokemon]['fast'] = fast
-            rankings[pokemon]['charge_1'] = charge_1
-            rankings[pokemon]['charge_2'] = None
+            results[pokemon]['name'] = name
+            results[pokemon]['fast'] = fast
+            results[pokemon]['charge_1'] = charge_1
+            results[pokemon]['charge_2'] = None
+        results[pokemon]['absolute_rank'] = rankings[pokemon]['absolute_rank']
+        if name in all_pokemon:
+            all_pokemon[name] = max(all_pokemon[name], rankings[pokemon]['absolute_rank'])
+        else:
+            all_pokemon[name] = rankings[pokemon]['absolute_rank']
 
-    rankings = [(rankings[k]['name'], rankings[k]['fast'], rankings[k]['charge_1'], rankings[k]['charge_2'], rankings[k]['absolute_rank'], rankings[k]['relative_rank']) for k in rankings]
+    all_pokemon = [(all_pokemon[key], key) for key in all_pokemon]
+    all_pokemon.sort(reverse=True)
+    results = [(results[k]['name'], results[k]['fast'], results[k]['charge_1'], results[k]['charge_2'], results[k]['absolute_rank']) for k in rankings]
+    min_score = min([x[4] for x in results])
+    max_score = max([x[4] for x in results])
+
+    print("Writing to database...")
 
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
@@ -85,10 +91,19 @@ def calculate_meta(cup: str):
     command = f"CREATE TABLE rankings ({', '.join(columns)})"
     cur.execute(command)
 
-    command = "INSERT INTO rankings(pokemon, fast, charge_1, charge_2, absolute_rank, relative_rank) VALUES (?,?,?,?,?,?)"
-    cur.executemany(command, rankings)
+    command = "INSERT INTO rankings(pokemon, fast, charge_1, charge_2, absolute_rank) VALUES (?,?,?,?,?)"
+    cur.executemany(command, results)
+
+    command = f"UPDATE rankings SET absolute_rank = round((absolute_rank - {min_score}) * 100 / ({max_score} - {min_score}), 1)"
+    cur.execute(command)
+
+    for i in range(1, len(all_pokemon) + 1):
+        command = f"UPDATE rankings SET relative_rank = {i} WHERE id in (SELECT id FROM rankings WHERE pokemon = ? ORDER BY absolute_rank DESC LIMIT 1)"
+        cur.execute(command, (all_pokemon[i - 1][1],))
+
     conn.commit()
     conn.close()
+    print("Done.\n")
 
 
 def weight_matrix_with_removals(matrix: dict):
@@ -128,7 +143,6 @@ def weight_matrix_with_removals(matrix: dict):
 
     scores = []
     for ally in matrix:
-        matrix[ally]['row'] = round(matrix[ally]['row'] * 100 / total, 4)
         scores.append(matrix[ally]['row'])
 
     to_remove = []
@@ -256,6 +270,21 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 if __name__ == '__main__':
-    mean, sd = calculate_mean_and_sd('kingdom')
-    for pokemon in ordered_top_pokemon('kingdom', mean + 3 * sd):
-        print(pokemon)
+    # mean, sd = calculate_mean_and_sd('kingdom')
+    # for pokemon in ordered_top_pokemon('kingdom', mean + 3 * sd):
+    #     print(pokemon)
+    for cup in [
+        # 'test',
+        # 'boulder',
+        # 'kingdom',
+        # 'tempest',
+        # 'twilight',
+        'may'
+    ]:
+        conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+        cur = conn.cursor()
+        command = "DROP TABLE rankings"
+        cur.execute(command)
+        conn.commit()
+        conn.close()
+        calculate_meta(cup)

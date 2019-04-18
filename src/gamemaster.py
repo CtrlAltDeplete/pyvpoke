@@ -23,7 +23,8 @@ DARK = 'dark'
 FAIRY = 'fairy'
 banned = ('Mewtwo', 'Giratina (Altered Forme)', 'Groudon', 'Kygore', 'Rayquaza', 'Garchomp', 'Latios', 'Latias',
           'Palkia', 'Dialga', 'Heatran', 'Giratina (Origin Forme)', 'Gastrodon', 'Shaymin (Sky Forme)',
-          'Shaymin (Lan Forme)', 'Rotom', 'Gallade', 'Gabite', 'Jirachi', 'Mew', 'Magnezone', 'Probopass')
+          'Shaymin (Lan Forme)', 'Rotom', 'Gallade', 'Gabite', 'Jirachi', 'Mew', 'Magnezone', 'Probopass', 'Medicham',
+          'Sableye')
 # ignored = ('Mew', 'Magnezone', 'Probopass')
 
 

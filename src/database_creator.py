@@ -31,7 +31,7 @@ def build_database(cup, restrictions):
     #     all_possibilities.extend([x for x in gm.all_movesets_for_pokemon(pokemon)])
 
     print("Starting Processes...")
-    num_processes = 6
+    num_processes = 7
     columns = (
         ' '.join(('id', 'INTEGER PRIMARY KEY AUTOINCREMENT')),
         ' '.join(('ally', 'TEXT')),
@@ -64,7 +64,7 @@ def build_database(cup, restrictions):
         for p in range(min(num_processes, len(all_possibilities) - i)):
             jobs[p].join()
 
-        print(f"{datetime.datetime.now()}: {percent_calculator(len(all_possibilities), i + 8)}% finished.")
+        print(f"{datetime.datetime.now()}: {percent_calculator(len(all_possibilities), i + num_processes)}% finished.")
 
     print()
     print("Done.")
@@ -75,12 +75,13 @@ def percent_calculator(total_pokemon, current_index):
 
 
 if __name__ == '__main__':
-    cups_and_restrictions = (
+    # cups_and_restrictions = (
         # ('boulder', ('rock', 'steel', 'ground', 'fighting')),
-        ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
-        ('tempest', ('ground', 'ice', 'electric', 'flying')),
-        ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
-    )
-    for i in range(4):
-        cup, restrictions = cups_and_restrictions[i]
-        build_database(cup, restrictions)
+    #     ('twilight', ('poison', 'ghost', 'dark', 'fairy')),
+    #     ('tempest', ('ground', 'ice', 'electric', 'flying')),
+    #     ('kingdom', ('fire', 'steel', 'ice', 'dragon'))
+    # )
+    # for i in range(4):
+    #     cup, restrictions = cups_and_restrictions[i]
+    #     build_database(cup, restrictions)
+    build_database('nightmare', ('psychic', 'fighting', 'dark'))
