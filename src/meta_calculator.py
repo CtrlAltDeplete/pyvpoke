@@ -246,19 +246,23 @@ def all_pokemon_movesets(cup: str, percentile_limit: int = 0):
 def ordered_movesets_for_pokemon(cup: str, pokemon: str):
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
-    command = f"SELECT fast, charge_1, charge_2, absolute_rank FROM rankings WHERE pokemon = {pokemon} ORDER BY relative_rank"
-    cur.execute(command)
+    command = f"SELECT fast, charge_1, charge_2, absolute_rank FROM rankings WHERE pokemon = ? ORDER BY relative_rank"
+    cur.execute(command, (pokemon,))
     rows = cur.fetchall()
     conn.close()
     return rows
 
 
 def calculate_mean_and_sd(cup: str):
+    ordered_pokemon = ordered_top_pokemon(cup)
+    scores = []
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
-    command = "SELECT absolute_rank FROM rankings"
-    cur.execute(command)
-    scores = [x[0] for x in cur.fetchall()]
+    for pokemon in ordered_pokemon:
+        command = f"SELECT absolute_rank FROM rankings WHERE pokemon = ? ORDER BY absolute_rank DESC"
+        cur.execute(command, (pokemon,))
+        row = cur.fetchone()
+        scores.append(row[0])
     conn.close()
     mean = sum(scores) / len(scores)
     sd = (sum([(x - mean) ** 2 for x in scores]) / len(scores)) ** 0.5
@@ -275,16 +279,9 @@ if __name__ == '__main__':
     #     print(pokemon)
     for cup in [
         # 'test',
-        # 'boulder',
-        # 'kingdom',
-        # 'tempest',
-        # 'twilight',
-        'may'
+        'boulder',
+        'kingdom',
+        'tempest',
+        'twilight',
     ]:
-        conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
-        cur = conn.cursor()
-        command = "DROP TABLE rankings"
-        cur.execute(command)
-        conn.commit()
-        conn.close()
-        calculate_meta(cup)
+        print(calculate_mean_and_sd(cup))
