@@ -27,7 +27,7 @@ def create_ranking_table(cup: str):
         jobs = []
         for j in range(min(num_processes, len(all_pokemon) - i)):
             pokemon = all_pokemon[i + j]
-            jobs.append(Process(target=add_pokemon_to_ranking_table, args=(pokemon, cup, mean, sd, i+1)))
+            jobs.append(Process(target=add_pokemon_to_ranking_table, args=(pokemon, cup, mean, sd, i+j+1)))
             jobs[j].start()
 
         for p in range(min(num_processes, len(all_pokemon) - i)):
@@ -149,7 +149,7 @@ def add_matchup_to_card_table(cup, cup_types, matchup):
 
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
-    meta = ordered_top_pokemon(cup, 90)
+    meta = ordered_top_pokemon(cup, 5)
     meta_scores = []
     command = "SELECT * FROM battle_sims WHERE ally = ? AND enemy = ?"
     for mon in meta:
@@ -193,7 +193,7 @@ def calculate_color(mean, sd, rank):
 
 
 def combos(cup, pokemon, cur):
-    meta = ordered_top_pokemon(cup, 90)
+    meta = ordered_top_pokemon(cup, 5)
     meta_matrix = {}
     for mon in meta:
         fast, charge_1, charge_2, absolute_rank = ordered_movesets_for_pokemon(cup, mon)[0]
@@ -237,14 +237,21 @@ def main():
     cups = [
         # 'test',
         ('boulder', ('rock', 'fighting', 'ground', 'steel')),
-        ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
-        ('tempest', ('flying', 'ice', 'electric', 'ground')),
-        ('kingdom', ('dragon', 'fire', 'ice', 'steel')),
-        ('nightmare', ('fighting', 'psychic', 'dark'))
+        # ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
+        # ('tempest', ('flying', 'ice', 'electric', 'ground')),
+        # ('kingdom', ('dragon', 'fire', 'ice', 'steel')),
+        # ('nightmare', ('fighting', 'psychic', 'dark'))
     ]
     for cup, cup_types in cups:
+        conn = sqlite3.connect(f"{path}/web/{cup}.db")
+        cur = conn.cursor()
+        cur.execute("DROP TABLE cards")
+        conn.commit()
+        conn.close()
+
         create_card_table(cup, cup_types)
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    print(ordered_top_pokemon('boulder', 5))

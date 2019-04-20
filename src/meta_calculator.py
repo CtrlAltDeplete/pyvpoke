@@ -235,7 +235,7 @@ def fill_card_info(ordered_pokemon, cup_types: tuple, pokemon: str, fast: str, c
 def ordered_top_pokemon(cup: str, percentile_limit: int = 0):
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
-    command = f"SELECT pokemon FROM rankings WHERE relative_rank > 0 and absolute_rank <= 100 - {percentile_limit} ORDER BY relative_rank"
+    command = f"SELECT pokemon FROM rankings WHERE relative_rank > 0 and absolute_rank >= 100 - {percentile_limit} ORDER BY relative_rank"
     cur.execute(command)
     rows = cur.fetchall()
     conn.close()
