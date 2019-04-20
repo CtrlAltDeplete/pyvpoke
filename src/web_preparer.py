@@ -179,10 +179,11 @@ def add_matchup_to_card_table(cup, cup_types, matchup):
 
     conn = sqlite3.connect(f"{path}/web/{cup}.db")
     cur = conn.cursor()
-    command = "INSERT INTO card VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    command = "INSERT INTO cards VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
     cur.execute(command, (name, fast_name, fast_power, fast_turns, fast_energy, charge_1_name, charge_1_power, charge_1_energy, charge_2_name, charge_2_power, charge_2_energy, best_matchups, worst_matchups, background_type))
     conn.commit()
     conn.close()
+
 
 def calculate_color(mean, sd, rank):
     if rank >= mean + 2 * sd:
@@ -242,15 +243,14 @@ def combos(cup, pokemon, cur):
 def main():
     cups = [
         # 'test',
-        # 'boulder',
-        # 'twilight',
-        # 'tempest',
-        # 'kingdom',
-        'nightmare'
+        ('boulder', ('rock', 'fighting', 'ground', 'steel')),
+        ('twilight', ('poision', 'fairy', 'dark', 'ghost')),
+        ('tempest', ('flying', 'ice', 'electric', 'ground')),
+        ('kingdom', ('dragon', 'fire', 'ice', 'steel')),
+        ('nightmare', ('fighting', 'psychic', 'dark'))
     ]
-    for cup in cups:
-        create_ranking_table(cup)
-        print(f"Finished {cup}.\n")
+    for cup, cup_types in cups:
+        create_card_table(cup, cup_types)
 
 
 if __name__ == '__main__':
