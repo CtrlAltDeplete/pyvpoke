@@ -150,31 +150,24 @@ def add_matchup_to_card_table(cup, cup_types, matchup):
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
     meta = ordered_top_pokemon(cup, 90)
-    meta_matrix = {}
+    meta_scores = []
+    command = "SELECT * FROM battle_sims WHERE ally = ? AND enemy = ?"
     for mon in meta:
         fast, charge_1, charge_2, absolute_rank = ordered_movesets_for_pokemon(cup, mon)[0]
         if charge_2:
             data = ', '.join([mon, fast, charge_1, charge_2])
         else:
             data = ', '.join([mon, fast, charge_1])
-        meta_matrix[data] = {}
-    if matchup not in meta_matrix:
-        meta_matrix[matchup] = {}
-    command = "SELECT * FROM battle_sims WHERE ally = ? AND enemy = ?"
-    for moveset in meta_matrix:
-        for moveset_2 in meta_matrix:
-            cur.execute(command, (moveset, moveset_2))
-            meta_matrix[moveset][moveset_2] = sum(cur.fetchone()[3:])
+        cur.execute(command, (matchup, data))
+        meta_scores.append((sum(cur.fetchone()[3:]), mon))
     conn.close()
 
-    best_matchups = [(meta_matrix[matchup][key], key.split(', ')[0]) for key in meta_matrix[matchup] if key != matchup]
-    best_matchups.sort(reverse=True)
-    best_matchups = [x[1] for x in best_matchups[:min(len(best_matchups), 18)]]
+    meta_scores.sort(reverse=True)
+    best_matchups = [x[1] for x in meta_scores[:min(len(meta_scores), 18)] if x[0] >= 9 * 500]
     best_matchups = ', '.join(best_matchups)
 
-    worst_matchups = [(meta_matrix[matchup][key], key.split(', ')[0]) for key in meta_matrix[matchup] if key != matchup]
-    worst_matchups.sort()
-    worst_matchups = [x[1] for x in worst_matchups[:min(len(worst_matchups), 18)]]
+    meta_scores.sort()
+    worst_matchups = [x[1] for x in meta_scores[:min(len(meta_scores), 18)] if x[0] < 9 * 500]
     worst_matchups = ', '.join(worst_matchups)
 
     conn = sqlite3.connect(f"{path}/web/{cup}.db")
