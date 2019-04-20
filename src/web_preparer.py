@@ -93,6 +93,97 @@ def add_pokemon_to_ranking_table(pokemon, cup, mean, sd, i):
     conn.close()
 
 
+def create_card_table(cup, cup_types):
+    conn = sqlite3.connect(f"{path}/web/{cup}.db")
+    cur = conn.cursor()
+    command = f"CREATE TABLE cards (name TEXT, fast_name TEXT, fast_power REAL, fast_turns REAL, fast_energy REAL, charge_1_name TEXT, charge_1_power REAL, charge_1_energy REAL, charge_2_name TEXT, charge_2_power REAL, charge_2_energy REAL, winning_matchups TEXT, losing_matchups TEXT, background_type TEXT)"
+    cur.execute(command)
+    conn.commit()
+
+    cur.execute("SELECT name, fast, charge_1, charge_2 FROM all_pokemon")
+    rows = cur.fetchall()
+    conn.close()
+
+    num_processes = 8
+    for i in range(0, len(rows), num_processes):
+        jobs = []
+        for j in range(min(num_processes, len(rows) - i)):
+            row = rows[i + j]
+            jobs.append(Process(target=add_matchup_to_card_table, args=(cup, cup_types, row)))
+            jobs[j].start()
+
+        for p in range(min(num_processes, len(rows) - i)):
+            jobs[p].join()
+
+        print(f"{round((i + num_processes) * 100 / len(rows), 1)}%")
+
+
+def add_matchup_to_card_table(cup, cup_types, matchup):
+    name, fast_name, charge_1_name, charge_2_name = matchup
+    matchup = ', '.join((name, fast_name, charge_1_name, charge_2_name) if charge_2_name else (name, fast_name, charge_1_name))
+    pokemon_types = gm.get_pokemon(name)['types']
+    fast_data = gm.get_move(fast_name)
+    fast_power = fast_data['power']
+    if fast_data['type'] in pokemon_types:
+        fast_power *= 1.2
+    fast_turns = fast_data['turns']
+    fast_energy = fast_data['energy']
+    charge_1_data = gm.get_move(charge_1_name)
+    charge_1_power = charge_1_data['power']
+    if charge_1_data['type'] in pokemon_types:
+        charge_1_power *= 1.2
+    charge_1_energy = charge_1_data['energy']
+    if charge_2_name:
+        charge_2_data = gm.get_move(charge_2_name)
+        charge_2_power = charge_2_data['power']
+        if charge_2_data['type'] in pokemon_types:
+            charge_2_power *= 1.2
+        charge_2_energy = charge_2_data['energy']
+    else:
+        charge_2_power = None
+        charge_2_energy = None
+    if pokemon_types[0] in cup_types:
+        background_type = pokemon_types[0]
+    else:
+        background_type = pokemon_types[1]
+
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+    meta = ordered_top_pokemon(cup, 90)
+    meta_matrix = {}
+    for mon in meta:
+        fast, charge_1, charge_2, absolute_rank = ordered_movesets_for_pokemon(cup, mon)[0]
+        if charge_2:
+            data = ', '.join([mon, fast, charge_1, charge_2])
+        else:
+            data = ', '.join([mon, fast, charge_1])
+        meta_matrix[data] = {}
+    if matchup not in meta_matrix:
+        meta_matrix[matchup] = {}
+    command = "SELECT * FROM battle_sims WHERE ally = ? AND enemy = ?"
+    for moveset in meta_matrix:
+        for moveset_2 in meta_matrix:
+            cur.execute(command, (moveset, moveset_2))
+            meta_matrix[moveset][moveset_2] = sum(cur.fetchone()[3:])
+    conn.close()
+
+    best_matchups = [(meta_matrix[matchup][key], key.split(', ')[0]) for key in meta_matrix[matchup] if key != matchup]
+    best_matchups.sort(reverse=True)
+    best_matchups = [x[1] for x in best_matchups[:min(len(best_matchups), 18)]]
+    best_matchups = ', '.join(best_matchups)
+
+    worst_matchups = [(meta_matrix[matchup][key], key.split(', ')[0]) for key in meta_matrix[matchup] if key != matchup]
+    worst_matchups.sort()
+    worst_matchups = [x[1] for x in worst_matchups[:min(len(worst_matchups), 18)]]
+    worst_matchups = ', '.join(worst_matchups)
+
+    conn = sqlite3.connect(f"{path}/web/{cup}.db")
+    cur = conn.cursor()
+    command = "INSERT INTO card VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    cur.execute(command, (name, fast_name, fast_power, fast_turns, fast_energy, charge_1_name, charge_1_power, charge_1_energy, charge_2_name, charge_2_power, charge_2_energy, best_matchups, worst_matchups, background_type))
+    conn.commit()
+    conn.close()
+
 def calculate_color(mean, sd, rank):
     if rank >= mean + 2 * sd:
         return "00FF00"
