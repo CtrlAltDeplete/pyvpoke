@@ -3,23 +3,32 @@ import sqlite3
 from copy import deepcopy
 
 
+def result_iter(cur, arraysize=1000):
+    while True:
+        results = cur.fetchmany(arraysize)
+        if not results:
+            break
+        for result in results:
+            yield result
+
+
 def calculate_meta(cup: str):
     # Create a matrix of all battle results
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    conn.text_factory = str
     cur = conn.cursor()
     cur.execute('SELECT * FROM battle_sims')
-    rows = cur.fetchall()
-    conn.close()
 
     print("Assembling matrix...")
 
     matrix = {}
-    for row in rows:
+    for row in result_iter(cur):
         row_id, ally, enemy = row[:3]
         scores = row[3:]
         if ally not in matrix:
             matrix[ally] = {}
         matrix[ally][enemy] = (scores[0] + scores[4] + scores[8] + sum(scores)) / 2
+    conn.close()
 
     to_remove = []
     for pokemon in matrix:
@@ -274,14 +283,4 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 if __name__ == '__main__':
-    # mean, sd = calculate_mean_and_sd('kingdom')
-    # for pokemon in ordered_top_pokemon('kingdom', mean + 3 * sd):
-    #     print(pokemon)
-    for cup in [
-        # 'test',
-        'boulder',
-        'kingdom',
-        'tempest',
-        'twilight',
-    ]:
-        print(calculate_mean_and_sd(cup))
+    calculate_meta('nightmare')

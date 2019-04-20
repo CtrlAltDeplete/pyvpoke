@@ -1,6 +1,6 @@
 from multiprocessing import Process
 from src.battle import battle_all_shields
-from src.gamemaster import path, GameMaster
+from src.gamemaster import path, GameMaster, banned
 from src.pokemon import Pokemon
 import sqlite3
 import datetime
@@ -25,13 +25,13 @@ def fill_table_for_pokemon(pokemon, all_pokemon, cup):
 
 def build_database(cup, restrictions):
     gm = GameMaster()
-    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(restrictions))
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(restrictions) if pokemon not in banned)
     # all_possibilities = []
     # for pokemon in ['Blastoise', 'Charizard', 'Venusaur']:
     #     all_possibilities.extend([x for x in gm.all_movesets_for_pokemon(pokemon)])
 
     print("Starting Processes...")
-    num_processes = 7
+    num_processes = 8
     columns = (
         ' '.join(('id', 'INTEGER PRIMARY KEY AUTOINCREMENT')),
         ' '.join(('ally', 'TEXT')),
@@ -54,6 +54,7 @@ def build_database(cup, restrictions):
     conn.commit()
     conn.close()
 
+    start_time = datetime.datetime.now()
     for i in range(0, len(all_possibilities), num_processes):
         jobs = []
         for j in range(min(num_processes, len(all_possibilities) - i)):
@@ -64,14 +65,17 @@ def build_database(cup, restrictions):
         for p in range(min(num_processes, len(all_possibilities) - i)):
             jobs[p].join()
 
-        print(f"{datetime.datetime.now()}: {percent_calculator(len(all_possibilities), i + num_processes)}% finished.")
+        print(percent_calculator(len(all_possibilities), i + num_processes, start_time))
 
     print()
     print("Done.")
 
 
-def percent_calculator(total_pokemon, current_index):
-    return round(100 * current_index / total_pokemon, 1)
+def percent_calculator(total_pokemon, current_index, start_time):
+    now = datetime.datetime.now()
+    percent = round(100 * current_index / total_pokemon, 1)
+    finish_time = start_time + (total_pokemon / current_index) * (now - start_time)
+    return f"{percent}%\t\t{finish_time.strftime('%Y-%m-%d %H:%M:%S')}"
 
 
 if __name__ == '__main__':
