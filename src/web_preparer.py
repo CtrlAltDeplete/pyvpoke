@@ -237,7 +237,7 @@ def main():
     cups = [
         # 'test',
         ('boulder', ('rock', 'fighting', 'ground', 'steel')),
-        ('twilight', ('poision', 'fairy', 'dark', 'ghost')),
+        ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
         ('tempest', ('flying', 'ice', 'electric', 'ground')),
         ('kingdom', ('dragon', 'fire', 'ice', 'steel')),
         ('nightmare', ('fighting', 'psychic', 'dark'))
