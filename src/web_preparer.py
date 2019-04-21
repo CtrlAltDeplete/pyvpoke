@@ -238,20 +238,14 @@ def main():
         # 'test',
         ('boulder', ('rock', 'fighting', 'ground', 'steel')),
         # ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
-        # ('tempest', ('flying', 'ice', 'electric', 'ground')),
+        ('tempest', ('flying', 'ice', 'electric', 'ground')),
         # ('kingdom', ('dragon', 'fire', 'ice', 'steel')),
-        # ('nightmare', ('fighting', 'psychic', 'dark'))
+        ('nightmare', ('fighting', 'psychic', 'dark'))
     ]
-    for cup, cup_types in cups:
-        conn = sqlite3.connect(f"{path}/web/{cup}.db")
-        cur = conn.cursor()
-        cur.execute("DROP TABLE cards")
-        conn.commit()
-        conn.close()
-
-        create_card_table(cup, cup_types)
+    for cup, type_restrictions in cups:
+        create_ranking_table(cup)
+        create_card_table(cup, type_restrictions)
 
 
 if __name__ == '__main__':
-    # main()
-    print(ordered_top_pokemon('boulder', 5))
+    main()

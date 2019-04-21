@@ -1,1 +1,2 @@
 data/databases/ filter=lfs diff=lfs merge=lfs -text
+data/databases/nightmare.db filter=lfs diff=lfs merge=lfs -text
