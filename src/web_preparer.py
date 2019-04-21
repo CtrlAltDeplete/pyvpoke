@@ -149,25 +149,25 @@ def add_matchup_to_card_table(cup, cup_types, matchup):
 
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
-    meta = ordered_top_pokemon(cup, 5)
+    meta = ordered_top_pokemon(cup, 10)
     meta_scores = []
     command = "SELECT * FROM battle_sims WHERE ally = ? AND enemy = ?"
     for mon in meta:
-        fast, charge_1, charge_2, absolute_rank = ordered_movesets_for_pokemon(cup, mon)[0]
+        fast, charge_1, charge_2, absolute_rank = ordered_movesets_for_pokemon(cup, mon)[-1]
         if charge_2:
             data = ', '.join([mon, fast, charge_1, charge_2])
         else:
             data = ', '.join([mon, fast, charge_1])
         cur.execute(command, (matchup, data))
-        meta_scores.append((sum(cur.fetchone()[3:]), mon))
+        meta_scores.append((sum(cur.fetchone()[3:]) / 9.0, mon))
     conn.close()
 
     meta_scores.sort(reverse=True)
-    best_matchups = [x[1] for x in meta_scores[:min(len(meta_scores), 18)] if x[0] >= 9 * 500]
+    best_matchups = [x[1] for x in meta_scores if x[0] > 500][:min(len(meta_scores), 18)]
     best_matchups = ', '.join(best_matchups)
 
     meta_scores.sort()
-    worst_matchups = [x[1] for x in meta_scores[:min(len(meta_scores), 18)] if x[0] < 9 * 500]
+    worst_matchups = [x[1] for x in meta_scores if x[0] < 500][:min(len(meta_scores), 18)]
     worst_matchups = ', '.join(worst_matchups)
 
     conn = sqlite3.connect(f"{path}/web/{cup}.db")
@@ -236,14 +236,21 @@ def combos(cup, pokemon, cur):
 def main():
     cups = [
         # 'test',
+        ('tempest', ('flying', 'ice', 'electric', 'ground')),
         ('boulder', ('rock', 'fighting', 'ground', 'steel')),
         # ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
-        ('tempest', ('flying', 'ice', 'electric', 'ground')),
         # ('kingdom', ('dragon', 'fire', 'ice', 'steel')),
-        ('nightmare', ('fighting', 'psychic', 'dark'))
+        # ('nightmare', ('fighting', 'psychic', 'dark'))
     ]
     for cup, type_restrictions in cups:
-        create_ranking_table(cup)
+        # create_ranking_table(cup)
+
+        conn = sqlite3.connect(f"{path}/web/{cup}.db")
+        cur = conn.cursor()
+        cur.execute("DROP TABLE cards")
+        conn.commit()
+        conn.close()
+
         create_card_table(cup, type_restrictions)
 
 
