@@ -1,6 +1,5 @@
 from src.gamemaster import path, banned, GameMaster
 import sqlite3
-from copy import deepcopy
 
 
 def result_iter(cur, arraysize=1000):
@@ -97,6 +96,7 @@ def calculate_meta(cup: str):
         ' '.join(('absolute_rank', 'REAL')),
         ' '.join(('relative_rank', 'REAL'))
     )
+
     command = f"CREATE TABLE rankings ({', '.join(columns)})"
     cur.execute(command)
 
@@ -164,74 +164,6 @@ def weight_matrix_with_removals(matrix: dict):
     return matrix, to_remove
 
 
-def fill_all_card_info(cup: str, cup_types: tuple):
-    gm = GameMaster()
-    db = TinyDB(f"{path}/data/databases/{cup}/meta.rankings")
-    # sim_table = db.table('battle_results')
-    meta_table = db.table('meta')
-    print("Querying meta information...")
-    query = Query()
-    ordered_pokemon = meta_table.search(query.relative_rank != 0)
-    db.close()
-    ordered_pokemon.sort(key=lambda k: k['relative_rank'])
-    print("Generating card info...")
-    to_write = []
-    for doc in all_pokemon_movesets(cup):
-        db = TinyDB(f"{path}/data/databases/{cup}/{doc['name']}.json")
-        sim_table = db.table('battle_results')
-        to_write.append(fill_card_info(ordered_pokemon, cup_types, doc['name'], doc['fast'], doc['charge_1'], doc['charge_2'], sim_table, gm))
-        db.close()
-    print("Writing to database...")
-    db = TinyDB(f"{path}/web/{cup}.carddata")
-    db.insert_multiple(to_write)
-    db.close()
-
-
-def fill_card_info(ordered_pokemon, cup_types: tuple, pokemon: str, fast: str, charge_1: str, charge_2: str, sim_table, gm):
-    # name, background, fast_data, charge_1_data, charge_2_data, winning_matchups, losing_matchups
-    win_against = []
-    lose_against = []
-    i = 0
-    ally = ', '.join([pokemon, fast, charge_1, charge_2])
-    query = Query()
-    battles = sim_table.search(query.pokemon.any([ally]))
-    while (len(win_against) < 18 or len(lose_against) < 18) and i < len(ordered_pokemon):
-        enemy = ', '.join([ordered_pokemon[i]['name'], ordered_pokemon[i]['fast'], ordered_pokemon[i]['charge_1'], ordered_pokemon[i]['charge_2']])
-        for battle in battles:
-            if battle['pokemon'] == [ally, enemy]:
-                win = sum([b[0] for b in battle['result']]) > sum([b[1] for b in battle['result']])
-                break
-            elif battle['pokemon'] == [enemy, ally]:
-                win = sum([b[0] for b in battle['result']]) < sum([b[1] for b in battle['result']])
-                break
-        if win and len(win_against) < 18:
-            win_against.append(ordered_pokemon[i]['name'])
-        elif not win and len(lose_against) < 18:
-            lose_against.append(ordered_pokemon[i]['name'])
-        i += 1
-    pokemon_types = deepcopy(gm.get_pokemon(pokemon)['types'])
-    background = pokemon_types[0] if pokemon_types[0] in cup_types else pokemon_types[1]
-    fast_data = deepcopy(gm.get_move(fast))
-    if fast_data['type'] in pokemon_types:
-        fast_data['power'] *= 1.2
-    charge_1_data = deepcopy(gm.get_move(charge_1))
-    if charge_1_data['type'] in pokemon_types:
-        charge_1_data['power'] *= 1.2
-    charge_2_data = deepcopy(gm.get_move(charge_2))
-    if charge_2_data['type'] in pokemon_types:
-        charge_2_data['power'] *= 1.2
-    return {'name': pokemon,
-            'background': background,
-            'fast_data': fast_data,
-            'fast_name': fast,
-            'charge_1_data': charge_1_data,
-            'charge_1_name': charge_1,
-            'charge_2_data': charge_2_data,
-            'charge_2_name': charge_2,
-            'winning_matchups': win_against,
-            'losing_matchups': lose_against}
-
-
 def ordered_top_pokemon(cup: str, percentile_limit: int = 100):
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
@@ -255,7 +187,7 @@ def all_pokemon_movesets(cup: str, percentile_limit: int = 100):
 def ordered_movesets_for_pokemon(cup: str, pokemon: str):
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
-    command = f"SELECT fast, charge_1, charge_2, absolute_rank FROM rankings WHERE pokemon = ? ORDER BY relative_rank"
+    command = f"SELECT fast, charge_1, charge_2, absolute_rank FROM rankings WHERE pokemon = ? ORDER BY absolute_rank DESC"
     cur.execute(command, (pokemon,))
     rows = cur.fetchall()
     conn.close()

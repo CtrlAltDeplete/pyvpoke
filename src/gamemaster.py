@@ -1,8 +1,8 @@
 from json import dump, load
 
 
-path = 'C:/Users/gavyn/Documents/Python/pyvpoke'
-# path = 'C:/Users/gavyn/PycharmProjects/pyvpoke'
+# path = 'C:/Users/gavyn/Documents/Python/pyvpoke'
+path = 'C:/Users/gavyn/PycharmProjects/pyvpoke'
 NORMAL = 'normal'
 FIGHTING = 'fighting'
 FLYING = 'flying'
@@ -23,9 +23,9 @@ DARK = 'dark'
 FAIRY = 'fairy'
 banned = ('Mewtwo', 'Giratina (Altered Forme)', 'Groudon', 'Kygore', 'Rayquaza', 'Garchomp', 'Latios', 'Latias',
           'Palkia', 'Dialga', 'Heatran', 'Giratina (Origin Forme)', 'Gastrodon', 'Shaymin (Sky Forme)',
-          'Shaymin (Lan Forme)', 'Rotom', 'Gallade', 'Gabite', 'Jirachi', 'Mew', 'Deoxys (Defense Forme)', 'Lugia',
-          'Cresselia', 'Uxie', 'Celebi', 'Deoxys (Speed Forme)', 'Azelf', 'Deoxys (Normal Forme)',
-          'Deoxys (Attack Forme)', 'Magnezone', 'Probopass', 'Medicham', 'Sableye')
+          'Shaymin (Lan Forme)', 'Rotom', 'Gabite', 'Jirachi', 'Mew', 'Deoxys (Defense Forme)', 'Lugia',
+          'Cresselia', 'Uxie', 'Celebi', 'Deoxys (Speed Forme)', 'Azelf', 'Deoxys (Normal Forme)', 'Mesprit',
+          'Darkrai', 'Deoxys (Attack Forme)', 'Magnezone', 'Probopass', 'Medicham', 'Sableye')
 # ignored = ('Mew', 'Magnezone', 'Probopass')
 
 

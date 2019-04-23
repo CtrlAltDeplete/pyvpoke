@@ -22,7 +22,7 @@ def create_ranking_table(cup: str):
 
     mean, sd = calculate_mean_and_sd(cup)
     all_pokemon = ordered_top_pokemon(cup)
-    num_processes = 8
+    num_processes = 7
     for i in range(0, len(all_pokemon), num_processes):
         jobs = []
         for j in range(min(num_processes, len(all_pokemon) - i)):
@@ -153,7 +153,7 @@ def add_matchup_to_card_table(cup, cup_types, matchup):
     meta_scores = []
     command = "SELECT * FROM battle_sims WHERE ally = ? AND enemy = ?"
     for mon in meta:
-        fast, charge_1, charge_2, absolute_rank = ordered_movesets_for_pokemon(cup, mon)[-1]
+        fast, charge_1, charge_2, absolute_rank = ordered_movesets_for_pokemon(cup, mon)[0]
         if charge_2:
             data = ', '.join([mon, fast, charge_1, charge_2])
         else:
@@ -236,23 +236,22 @@ def combos(cup, pokemon, cur):
 def main():
     cups = [
         # 'test',
-        ('tempest', ('flying', 'ice', 'electric', 'ground')),
-        ('boulder', ('rock', 'fighting', 'ground', 'steel')),
+        # ('boulder', ('rock', 'fighting', 'ground', 'steel')),
         # ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
+        # ('tempest', ('flying', 'ice', 'electric', 'ground')),
         # ('kingdom', ('dragon', 'fire', 'ice', 'steel')),
-        # ('nightmare', ('fighting', 'psychic', 'dark'))
+        ('nightmare', ('fighting', 'psychic', 'dark'))
     ]
     for cup, type_restrictions in cups:
-        # create_ranking_table(cup)
-
-        conn = sqlite3.connect(f"{path}/web/{cup}.db")
-        cur = conn.cursor()
-        cur.execute("DROP TABLE cards")
-        conn.commit()
-        conn.close()
-
-        create_card_table(cup, type_restrictions)
+        create_ranking_table(cup)
+        print(f"Done with {cup}.\n")
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    cup = 'nightmare'
+    restrictions = ('psychic', 'fighting', 'dark')
+    gm = GameMaster()
+    matchups = gm.all_movesets_for_pokemon('Gallade')
+    for matchup in matchups:
+        add_matchup_to_card_table(cup, restrictions, matchup)
