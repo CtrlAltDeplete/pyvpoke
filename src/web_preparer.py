@@ -4,7 +4,9 @@ from src.meta_calculator import (
 )
 from src.pokemon import Pokemon
 from multiprocessing import Process
+from math import ceil
 import sqlite3
+import datetime
 
 
 gm = GameMaster()
@@ -96,7 +98,7 @@ def add_pokemon_to_ranking_table(pokemon, cup, mean, sd, i):
 def create_card_table(cup, cup_types):
     conn = sqlite3.connect(f"{path}/web/{cup}.db")
     cur = conn.cursor()
-    command = f"CREATE TABLE cards (name TEXT, fast_name TEXT, fast_power REAL, fast_turns REAL, fast_energy REAL, charge_1_name TEXT, charge_1_power REAL, charge_1_energy REAL, charge_2_name TEXT, charge_2_power REAL, charge_2_energy REAL, winning_matchups TEXT, losing_matchups TEXT, background_type TEXT)"
+    command = f"CREATE TABLE cards (name TEXT, type_1 TEXT, type_2 TEXT, background_type TEXT, fast_type TEXT, fast_name TEXT, fast_turns INTEGER, fast_power REAL, fast_energy REAL, charge_1_type TEXT, charge_1_name TEXT, charge_1_turns INTEGER, charge_1_power REAL, charge_1_energy REAL, charge_2_type TEXT, charge_2_name TEXT, charge_2_turns INTEGER, charge_2_power REAL, charge_2_energy REAL, wins_0_0 TEXT, wins_0_1 TEXT, wins_0_2 TEXT, wins_0_3 TEXT, wins_0_4 TEXT, wins_1_0 TEXT, wins_1_1 TEXT, wins_1_2 TEXT, wins_1_3 TEXT, wins_1_4 TEXT, wins_2_0 TEXT, wins_2_1 TEXT, wins_2_2 TEXT, wins_2_3 TEXT, wins_2_4 TEXT, losses_0_0 TEXT, losses_0_1 TEXT, losses_0_2 TEXT, losses_0_3 TEXT, losses_0_4 TEXT, losses_1_0 TEXT, losses_1_1 TEXT, losses_1_2 TEXT, losses_1_3 TEXT, losses_1_4 TEXT, losses_2_0 TEXT, losses_2_1 TEXT, losses_2_2 TEXT, losses_2_3 TEXT, losses_2_4 TEXT)"
     cur.execute(command)
     conn.commit()
 
@@ -105,6 +107,7 @@ def create_card_table(cup, cup_types):
     conn.close()
 
     num_processes = 8
+    start_time = datetime.datetime.now()
     for i in range(0, len(rows), num_processes):
         jobs = []
         for j in range(min(num_processes, len(rows) - i)):
@@ -115,65 +118,132 @@ def create_card_table(cup, cup_types):
         for p in range(min(num_processes, len(rows) - i)):
             jobs[p].join()
 
-        print(f"{round((i + num_processes) * 100 / len(rows), 1)}%")
+        print(percent_calculator(len(rows), min((i + num_processes, len(rows))), start_time))
+
+
+def repair_card_table(cup, cup_types):
+    conn = sqlite3.connect(f"{path}/web/{cup}.db")
+    cur = conn.cursor()
+    cur.execute("SELECT name, fast, charge_1, charge_2 FROM all_pokemon")
+    rows = cur.fetchall()
+    to_repair = []
+    for row in rows:
+        if row[3]:
+            command = "SELECT * FROM cards WHERE name = ? AND fast_name = ? AND charge_1_name = ? AND charge_2_name = ?"
+            cur.execute(command, row)
+        else:
+            command = "SELECT * FROM cards WHERE name = ? AND fast_name = ? AND charge_1_name = ? AND charge_2_name IS NULL"
+            cur.execute(command, row[:-1])
+        if len(cur.fetchall()) == 0:
+            to_repair.append(row)
+    conn.close()
+
+    num_processes = 8
+    start_time = datetime.datetime.now()
+    for i in range(0, len(to_repair), num_processes):
+        jobs = []
+        for j in range(min(num_processes, len(to_repair) - i)):
+            row = to_repair[i + j]
+            jobs.append(Process(target=add_matchup_to_card_table, args=(cup, cup_types, row)))
+            jobs[j].start()
+
+        for p in range(min(num_processes, len(to_repair) - i)):
+            jobs[p].join()
+
+        print(percent_calculator(len(to_repair), min((i + num_processes, len(to_repair))), start_time))
 
 
 def add_matchup_to_card_table(cup, cup_types, matchup):
     name, fast_name, charge_1_name, charge_2_name = matchup
     matchup = ', '.join((name, fast_name, charge_1_name, charge_2_name) if charge_2_name else (name, fast_name, charge_1_name))
     pokemon_types = gm.get_pokemon(name)['types']
+    type_1 = pokemon_types[0]
+    type_2 = pokemon_types[1] if len(pokemon_types) == 2 else None
     fast_data = gm.get_move(fast_name)
     fast_power = fast_data['power']
     if fast_data['type'] in pokemon_types:
         fast_power *= 1.2
     fast_turns = fast_data['turns']
     fast_energy = fast_data['energy']
+    fast_type = fast_data['type']
     charge_1_data = gm.get_move(charge_1_name)
     charge_1_power = charge_1_data['power']
     if charge_1_data['type'] in pokemon_types:
         charge_1_power *= 1.2
     charge_1_energy = charge_1_data['energy']
+    charge_1_type = charge_1_data['type']
+    charge_1_turns = ceil(charge_1_energy / fast_energy)
     if charge_2_name:
         charge_2_data = gm.get_move(charge_2_name)
         charge_2_power = charge_2_data['power']
         if charge_2_data['type'] in pokemon_types:
             charge_2_power *= 1.2
         charge_2_energy = charge_2_data['energy']
+        charge_2_type = charge_2_data['type']
+        charge_2_turns = ceil(charge_2_energy / fast_energy)
     else:
         charge_2_power = None
         charge_2_energy = None
+        charge_2_type = None
+        charge_2_turns = None
     if pokemon_types[0] in cup_types:
         background_type = pokemon_types[0]
     else:
         background_type = pokemon_types[1]
+    meta = ordered_top_pokemon(cup)
+
+    wins_0 = []
+    wins_1 = []
+    wins_2 = []
+    losses_0 = []
+    losses_1 = []
+    losses_2 = []
+
 
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
-    meta = ordered_top_pokemon(cup, 10)
-    meta_scores = []
     command = "SELECT * FROM battle_sims WHERE ally = ? AND enemy = ?"
-    for mon in meta:
+    i = 0
+    while i < len(meta) and (
+            len(wins_0) != 5 or len(wins_1) != 5 or len(wins_2) != 5 or len(losses_0) != 5 or len(losses_1) != 5 or len(losses_2) != 5
+    ):
+        mon = meta[i]
         fast, charge_1, charge_2, absolute_rank = ordered_movesets_for_pokemon(cup, mon)[0]
         if charge_2:
             data = ', '.join([mon, fast, charge_1, charge_2])
         else:
             data = ', '.join([mon, fast, charge_1])
         cur.execute(command, (matchup, data))
-        meta_scores.append((sum(cur.fetchone()[3:]) / 9.0, mon))
+        scores = cur.fetchone()[3:]
+
+        if scores[0] > 500 and len(wins_0) < 5:
+            wins_0.append(mon)
+        elif scores[0] < 500 and len(losses_0) < 5:
+            losses_0.append(mon)
+
+        if scores[4] > 500 and len(wins_1) < 5:
+            wins_1.append(mon)
+        elif scores[4] < 500 and len(losses_1) < 5:
+            losses_1.append(mon)
+
+        if scores[8] > 500 and len(wins_2) < 5:
+            wins_2.append(mon)
+        elif scores[8] < 500 and len(losses_2) < 5:
+            losses_2.append(mon)
+        i += 1
     conn.close()
 
-    meta_scores.sort(reverse=True)
-    best_matchups = [x[1] for x in meta_scores if x[0] > 500][:min(len(meta_scores), 18)]
-    best_matchups = ', '.join(best_matchups)
-
-    meta_scores.sort()
-    worst_matchups = [x[1] for x in meta_scores if x[0] < 500][:min(len(meta_scores), 18)]
-    worst_matchups = ', '.join(worst_matchups)
+    for l in (wins_0, wins_1, wins_2, losses_0, losses_1, losses_2):
+        while len(l) < 5:
+            l.append(None)
 
     conn = sqlite3.connect(f"{path}/web/{cup}.db")
     cur = conn.cursor()
-    command = "INSERT INTO cards VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    cur.execute(command, (name, fast_name, fast_power, fast_turns, fast_energy, charge_1_name, charge_1_power, charge_1_energy, charge_2_name, charge_2_power, charge_2_energy, best_matchups, worst_matchups, background_type))
+    command = "INSERT INTO cards VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    params = [name, type_1, type_2, background_type, fast_type, fast_name, fast_turns, fast_power, fast_energy,
+              charge_1_type, charge_1_name, charge_1_turns, charge_1_power, charge_1_energy, charge_2_type,
+              charge_2_name, charge_2_turns, charge_2_power, charge_2_energy] + wins_0 + wins_1 + wins_2 + losses_0 + losses_1 + losses_2
+    cur.execute(command, params)
     conn.commit()
     conn.close()
 
@@ -233,25 +303,31 @@ def combos(cup, pokemon, cur):
     return best_matchups, worst_matchups, team_scores
 
 
+def percent_calculator(total_pokemon, current_index, start_time):
+    now = datetime.datetime.now()
+    percent = round(100 * current_index / total_pokemon, 1)
+    finish_time = start_time + (total_pokemon / current_index) * (now - start_time)
+    return f"{percent}%\t\t{finish_time.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
 def main():
     cups = [
         # 'test',
-        # ('boulder', ('rock', 'fighting', 'ground', 'steel')),
-        # ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
-        # ('tempest', ('flying', 'ice', 'electric', 'ground')),
+        # ('nightmare', ('fighting', 'psychic', 'dark')),
         # ('kingdom', ('dragon', 'fire', 'ice', 'steel')),
-        ('nightmare', ('fighting', 'psychic', 'dark'))
+        ('tempest', ('flying', 'ice', 'electric', 'ground')),
+        ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
+        ('boulder', ('rock', 'fighting', 'ground', 'steel')),
     ]
     for cup, type_restrictions in cups:
-        create_ranking_table(cup)
-        print(f"Done with {cup}.\n")
+        conn = sqlite3.connect(f"{path}/web/{cup}.db")
+        cur = conn.cursor()
+        cur.execute("DROP TABLE cards")
+        conn.commit()
+        conn.close()
+
+        create_card_table(cup, type_restrictions)
 
 
 if __name__ == '__main__':
-    # main()
-    cup = 'nightmare'
-    restrictions = ('psychic', 'fighting', 'dark')
-    gm = GameMaster()
-    matchups = gm.all_movesets_for_pokemon('Gallade')
-    for matchup in matchups:
-        add_matchup_to_card_table(cup, restrictions, matchup)
+    main()
