@@ -311,22 +311,31 @@ def percent_calculator(total_pokemon, current_index, start_time):
 
 
 def main():
-    cups = [
+    # cups = [
         # 'test',
         # ('nightmare', ('fighting', 'psychic', 'dark')),
         # ('kingdom', ('dragon', 'fire', 'ice', 'steel')),
-        ('tempest', ('flying', 'ice', 'electric', 'ground')),
-        ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
-        ('boulder', ('rock', 'fighting', 'ground', 'steel')),
-    ]
-    for cup, type_restrictions in cups:
-        conn = sqlite3.connect(f"{path}/web/{cup}.db")
-        cur = conn.cursor()
-        cur.execute("DROP TABLE cards")
-        conn.commit()
-        conn.close()
+    #     ('tempest', ('flying', 'ice', 'electric', 'ground')),
+    #     ('twilight', ('poison', 'fairy', 'dark', 'ghost')),
+    #     ('boulder', ('rock', 'fighting', 'ground', 'steel')),
+    # ]
+    # for cup, type_restrictions in cups:
+    #     conn = sqlite3.connect(f"{path}/web/{cup}.db")
+    #     cur = conn.cursor()
+    #     cur.execute("DROP TABLE cards")
+    #     conn.commit()
+    #     conn.close()
+    #
+    #     create_card_table(cup, type_restrictions)
+    repair_card_table('tempest', ('flying', 'ice', 'electric', 'ground'))
 
-        create_card_table(cup, type_restrictions)
+    conn = sqlite3.connect(f"{path}/web/boulder.db")
+    cur = conn.cursor()
+    cur.execute("DROP TABLE cards")
+    conn.commit()
+    conn.close()
+
+    create_card_table('boulder', ('rock', 'fighting', 'steel', 'ground'))
 
 
 if __name__ == '__main__':
