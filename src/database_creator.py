@@ -71,6 +71,55 @@ def build_database(cup, restrictions):
     print("Done.")
 
 
+def repair_database(cup, restrictions):
+    gm = GameMaster()
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.iter_pokemon_move_set_combos(restrictions) if pokemon not in banned)
+    # all_possibilities = []
+    # for pokemon in ['Blastoise', 'Charizard', 'Venusaur']:
+    #     all_possibilities.extend([x for x in gm.all_movesets_for_pokemon(pokemon)])
+
+    conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+    cur = conn.cursor()
+
+    repair_dict = {}
+    for i, ally in enumerate(all_possibilities):
+        ally_str = ', '.join(ally) if ally[3] else ', '.join(ally[:-1])
+        command = "SELECT id FROM battle_sims WHERE ally = ?"
+        cur.execute(command, (ally_str,))
+        rows = cur.fetchall()
+        if len(rows) == len(all_possibilities):
+            print(f"{round(100 * i / len(all_possibilities), 2)}%")
+            continue
+        elif not rows:
+            index = 0
+        else:
+            index = len(rows)
+        repair_dict[ally] = [x for x in all_possibilities[index:]]
+        print(f"{round(100 * i / len(all_possibilities), 2)}%")
+
+    conn.close()
+
+    print("Starting Processes...")
+    num_processes = 8
+
+    start_time = datetime.datetime.now()
+    keys = [x for x in repair_dict.keys()]
+    for i in range(0, len(keys), num_processes):
+        jobs = []
+        for j in range(min(num_processes, len(keys) - i)):
+            pokemon = keys[i + j]
+            jobs.append(Process(target=fill_table_for_pokemon, args=(pokemon, repair_dict[pokemon], cup)))
+            jobs[j].start()
+
+        for p in range(min(num_processes, len(keys) - i)):
+            jobs[p].join()
+
+        print(percent_calculator(len(keys), i + num_processes, start_time))
+
+    print()
+    print("Done.")
+
+
 def percent_calculator(total_pokemon, current_index, start_time):
     now = datetime.datetime.now()
     percent = round(100 * current_index / total_pokemon, 1)
@@ -88,4 +137,33 @@ if __name__ == '__main__':
     # for i in range(4):
     #     cup, restrictions = cups_and_restrictions[i]
     #     build_database(cup, restrictions)
-    build_database('nightmare', ('psychic', 'fighting', 'dark'))
+    gm = GameMaster()
+    cup, restrictions = ('regionals', ('rock', 'steel', 'ground', 'poison', 'ghost', 'fairy', 'ice', 'electric', 'flying', 'fire', 'dragon', 'psychic', 'fighting', 'dark'))
+
+    all_possibilities = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in
+                              gm.iter_pokemon_move_set_combos(restrictions) if pokemon not in banned)
+    pokemon_to_add = tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.all_movesets_for_pokemon('Sableye'))
+    pokemon_to_add = pokemon_to_add + tuple((pokemon, fast, charge_1, charge_2) for pokemon, fast, charge_1, charge_2 in gm.all_movesets_for_pokemon('Medicham'))
+
+    conn = sqlite3.connect(f"{path}/data/databases/regionals.db")
+    cur = conn.cursor()
+    for i, ally in enumerate(pokemon_to_add):
+        command = "SELECT * FROM battle_sims WHERE ally = ?"
+        ally_str = ', '.join(ally if ally[-1] else ally[:-1])
+        cur.execute(command, (ally_str,))
+        rows = cur.fetchall()
+        to_write = []
+        for row in rows:
+            if 'Medicham' not in row[2] and 'Sableye' not in row[2]:
+                new_row = [row[2], row[1]]
+                for score in row[3:]:
+                    new_row.append(1000 - score)
+                to_write.append(new_row)
+        command = "INSERT INTO battle_sims(ally, enemy, zeroVzero, zeroVone, zeroVtwo, oneVzero, oneVone, oneVtwo, twoVzero, twoVone, twoVtwo) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+        cur.executemany(command, to_write)
+        print(f"{round(100 * i / len(pokemon_to_add), 1)}%")
+    conn.commit()
+    conn.close()
+
+    print()
+    print("Done.")

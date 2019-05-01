@@ -52,7 +52,7 @@ def calculate_meta(cup: str):
             for pokemon_2 in matrix:
                 matrix[pokemon_2].pop(pokemon, None)
             current_rank += 1
-        print(current_rank)
+        print(round(100 * current_rank / max_rank, 1))
 
     results = {}
     all_pokemon = {}
@@ -215,4 +215,4 @@ def scale_ranking(rank, min_rank, max_rank):
 
 
 if __name__ == '__main__':
-    calculate_meta('nightmare')
+    calculate_meta('regionals')
