@@ -1,5 +1,7 @@
-from src.gamemaster import path, banned, GameMaster
+from src.gamemaster import path, banned
+from multiprocessing import Process, Manager
 import sqlite3
+import numpy as np
 
 
 def result_iter(cur, arraysize=1000):
@@ -11,7 +13,7 @@ def result_iter(cur, arraysize=1000):
             yield result
 
 
-def calculate_meta(cup: str):
+def calculate_meta(cup: str, page_rank_matrix=None):
     # Create a matrix of all battle results
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     conn.text_factory = str
@@ -20,44 +22,86 @@ def calculate_meta(cup: str):
 
     print("Assembling matrix...")
 
-    matrix = {}
+    score_matrix = {}
     for row in result_iter(cur):
         row_id, ally, enemy = row[:3]
         scores = row[3:]
-        if ally not in matrix:
-            matrix[ally] = {}
-        matrix[ally][enemy] = (scores[0] + scores[4] + scores[8] + sum(scores)) / 2
+        if ally not in score_matrix:
+            score_matrix[ally] = {}
+        score_matrix[ally][enemy] = sum(scores) / len(scores)
     conn.close()
 
-    to_remove = []
-    for pokemon in matrix:
-        if any([ban in pokemon for ban in banned]):
-            to_remove.append(pokemon)
-    for pokemon in to_remove:
-        matrix.pop(pokemon, None)
-        for pokemon_2 in matrix:
-            matrix[pokemon_2].pop(pokemon, None)
+    print("Calculating Page Ranks...")
 
-    rankings = {}
-    current_rank = 1
+    keys = list(x for x in score_matrix.keys() if not any([y in x for y in banned]))
+    if page_rank_matrix is None:
+        manager = Manager()
+        num_processes = 8
+        page_rank_matrix = manager.dict()
+        for i in range(0, len(keys), num_processes):
+            jobs = []
+            for j in range(min(num_processes, len(keys) - i)):
+                moveset = keys[i + j]
+                page_rank_matrix[moveset] = []
+                jobs.append(Process(target=add_moveset_to_meta_matrix, args=(score_matrix, page_rank_matrix, moveset, keys)))
+                jobs[j].start()
+            for p in range(min(num_processes, len(keys) - i)):
+                jobs[p].join()
+            print(f"{round(100 * (i + num_processes) / len(keys), 1)}%")
+        page_rank_matrix = [page_rank_matrix[x] for x in keys]
+        for col in range(len(keys)):
+            column_sum = 0
+            for row in range(len(keys)):
+                column_sum += page_rank_matrix[row][col]
+            for row in range(len(keys)):
+                try:
+                    page_rank_matrix[row][col] = 0 if column_sum == 0 else page_rank_matrix[row][col] / float(column_sum)
+                except ZeroDivisionError:
+                    print("Zero Division Error", keys[col])
+                    exit(69)
 
-    print("Calculating rankings...")
+        page_rank_matrix = np.array(page_rank_matrix)
+        with open(f"{path}/data/{cup}_matrix.json", 'w') as f:
+            page_rank_matrix.tofile(f)
+    else:
+        page_rank_matrix.shape = (len(keys), len(keys))
 
-    max_rank = len(matrix)
-    while current_rank <= max_rank:
-        matrix, to_remove = weight_matrix_with_removals(matrix)
-        for pokemon in to_remove:
-            rankings[pokemon] = {'absolute_rank': current_rank}
-            matrix.pop(pokemon, None)
-            for pokemon_2 in matrix:
-                matrix[pokemon_2].pop(pokemon, None)
-            current_rank += 1
-        print(round(100 * current_rank / max_rank, 1))
+    print("Scoring Pokemon...")
+
+    control_vector = [1.0 / len(keys) for i in range(len(keys))]
+    old_order = [(control_vector[i], keys[i]) for i in range(len(keys))]
+    old_order.sort(reverse=False)
+    old_order = [x[1] for x in old_order]
+
+    i = 0
+    constant_rank_count = 0
+    while True:
+        i += 1
+        control_vector = page_rank_matrix.dot(control_vector)
+        new_order = [(control_vector[j], keys[j]) for j in range(len(keys))]
+        new_order.sort(reverse=True)
+        new_order = [x[1] for x in new_order]
+        differences = 0
+        for j in range(len(new_order)):
+            if old_order[j] != new_order[j]:
+                differences += 1
+        old_order = new_order
+        if differences == 0:
+            constant_rank_count += 1
+            if constant_rank_count == 3:
+                break
+        else:
+            constant_rank_count = 0
+
+    rankings = [(control_vector[i], keys[i]) for i in range(len(keys))]
+    rankings.sort(reverse=False)
+    rankings = [(100 * float(i) / float(len(rankings)), key[1]) for i, key in enumerate(rankings)]
 
     results = {}
     all_pokemon = {}
 
-    for pokemon in rankings:
+    i = 0
+    for score, pokemon in rankings:
         results[pokemon] = {}
         if len(pokemon.split(', ')) == 4:
             name, fast, charge_1, charge_2 = pokemon.split(', ')
@@ -71,17 +115,16 @@ def calculate_meta(cup: str):
             results[pokemon]['fast'] = fast
             results[pokemon]['charge_1'] = charge_1
             results[pokemon]['charge_2'] = None
-        results[pokemon]['absolute_rank'] = rankings[pokemon]['absolute_rank']
+        results[pokemon]['absolute_rank'] = score
         if name in all_pokemon:
-            all_pokemon[name] = max(all_pokemon[name], rankings[pokemon]['absolute_rank'])
+            all_pokemon[name] = max(all_pokemon[name], results[pokemon]['absolute_rank'])
         else:
-            all_pokemon[name] = rankings[pokemon]['absolute_rank']
+            all_pokemon[name] = results[pokemon]['absolute_rank']
+        i += 1
 
     all_pokemon = [(all_pokemon[key], key) for key in all_pokemon]
     all_pokemon.sort(reverse=True)
-    results = [(results[k]['name'], results[k]['fast'], results[k]['charge_1'], results[k]['charge_2'], results[k]['absolute_rank']) for k in rankings]
-    min_score = min([x[4] for x in results])
-    max_score = max([x[4] for x in results])
+    results = [(results[k]['name'], results[k]['fast'], results[k]['charge_1'], results[k]['charge_2'], results[k]['absolute_rank']) for k in results]
 
     print("Writing to database...")
 
@@ -103,9 +146,6 @@ def calculate_meta(cup: str):
     command = "INSERT INTO rankings(pokemon, fast, charge_1, charge_2, absolute_rank) VALUES (?,?,?,?,?)"
     cur.executemany(command, results)
 
-    command = f"UPDATE rankings SET absolute_rank = round((absolute_rank - {min_score}) * 100 / ({max_score} - {min_score}), 1)"
-    cur.execute(command)
-
     for i in range(1, len(all_pokemon) + 1):
         command = f"UPDATE rankings SET relative_rank = {i} WHERE id in (SELECT id FROM rankings WHERE pokemon = ? ORDER BY absolute_rank DESC LIMIT 1)"
         cur.execute(command, (all_pokemon[i - 1][1],))
@@ -115,63 +155,30 @@ def calculate_meta(cup: str):
     print("Done.\n")
 
 
-def weight_matrix_with_removals(matrix: dict):
-    victories = {}
-    for ally in matrix:
-        victories[ally] = []
-        for enemy in matrix:
-            if matrix[ally][enemy] > matrix[enemy][ally]:
-                victories[ally].append(enemy)
+def add_moveset_to_meta_matrix(score_matrix, pr_matrix, moveset, keys):
+    score_list = []
+    for ally in keys:
+        score = 0
+        for enemy in keys:
+            score += max(score_matrix[moveset][enemy], score_matrix[ally][enemy])
+        score_list.append(score)
+    pr_matrix[moveset] = score_list
 
-    to_ignore = []
-    victories = [(pokemon, set(v)) for pokemon, v in victories.items()]
-    for pokemon, v in victories:
-        if any(v.issubset(w[1]) and v != w[1] for w in victories):
-            to_ignore.append(pokemon)
 
-    if len(to_ignore) + 1 >= len(matrix.keys()):
-        return matrix, list(matrix.keys())
-
-    for ally in matrix:
-        column = 0
-        for enemy in matrix:
-            if enemy not in to_ignore:
-                column += matrix[enemy][ally]
-        matrix[ally]['column'] = column
-
-    total = 0
-    for ally in matrix:
-        row = 0
-        for enemy in matrix:
-            if matrix[ally]['column'] == 0:
-                print(matrix)
-                exit(69)
-            row += matrix[ally][enemy] / matrix[ally]['column']
-        matrix[ally]['row'] = row
-        total += row
-
-    scores = []
-    for ally in matrix:
-        scores.append(matrix[ally]['row'])
-
-    to_remove = []
-    scores.sort()
-
-    for pokemon in matrix:
-        if matrix[pokemon]['row'] in scores[:min(3, len(scores))]:
-            to_remove.append(pokemon)
-
-    return matrix, to_remove
+def bellcurve_of_data(rankings):
+    s = np.random.normal(50.0, 50.0 / 3.2, len(rankings))
+    s.sort()
+    return [(round(max(0.0, min(s[i], 100.0)), 1), rank[1]) for i, rank in enumerate(rankings)]
 
 
 def ordered_top_pokemon(cup: str, percentile_limit: int = 100):
     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
     cur = conn.cursor()
-    command = f"SELECT pokemon FROM rankings WHERE relative_rank > 0 and absolute_rank >= 100 - {percentile_limit} ORDER BY relative_rank"
+    command = f"SELECT pokemon, absolute_rank FROM rankings WHERE relative_rank > 0 and absolute_rank >= 100 - {percentile_limit} ORDER BY relative_rank"
     cur.execute(command)
     rows = cur.fetchall()
     conn.close()
-    return [x[0] for x in rows]
+    return rows
 
 
 def all_pokemon_movesets(cup: str, percentile_limit: int = 100):
@@ -210,9 +217,46 @@ def calculate_mean_and_sd(cup: str):
     return mean, sd / 2
 
 
+def multiply_matrices(a, v):
+    new_matrix = {}
+    for key in v:
+        value = 0
+        for col in v:
+            value += a[key][col] * v[col]
+        new_matrix[key] = value
+    return new_matrix
+
+
 def scale_ranking(rank, min_rank, max_rank):
-    return round((rank - min_rank) * 100 / (max_rank - min_rank), 1)
+    return round(100 - (rank - min_rank) * 100 / (max_rank - min_rank), 2)
 
 
 if __name__ == '__main__':
-    calculate_meta('regionals')
+    for cup in [
+        'nightmare',
+        'kingdom',
+        'tempest',
+        'twilight',
+        'boulder',
+        'regionals'
+    ]:
+        try:
+            conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+            cur = conn.cursor()
+            cur.execute("DROP TABLE rankings")
+            conn.commit()
+            conn.close()
+        except sqlite3.OperationalError:
+            pass
+
+        # with open(f"{path}/data/{cup}_matrix.json", 'r') as f:
+        #     matrix = np.core.multiarray.fromfile(f)
+        # calculate_meta(cup, matrix)
+        calculate_meta(cup)
+
+        # for mon, score in ordered_top_pokemon(cup):
+        #     print(mon)
+        #     for moveset in ordered_movesets_for_pokemon(cup, mon):
+        #         print('\t' + str(moveset))
+        #     print()
+
