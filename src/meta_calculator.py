@@ -1,5 +1,7 @@
 from src.gamemaster import path, banned
 from multiprocessing import Process, Manager
+from json import dump, load
+
 import sqlite3
 import numpy as np
 
@@ -34,6 +36,10 @@ def calculate_meta(cup: str, page_rank_matrix=None):
     print("Calculating Page Ranks...")
 
     keys = list(x for x in score_matrix.keys() if not any([y in x for y in banned]))
+
+    with open(f"{cup}-dumped-data.json", 'w') as f:
+        dump([keys, score_matrix], f)
+
     if page_rank_matrix is None:
         manager = Manager()
         num_processes = 8
@@ -43,7 +49,7 @@ def calculate_meta(cup: str, page_rank_matrix=None):
             for j in range(min(num_processes, len(keys) - i)):
                 moveset = keys[i + j]
                 page_rank_matrix[moveset] = []
-                jobs.append(Process(target=add_moveset_to_meta_matrix, args=(score_matrix, page_rank_matrix, moveset, keys)))
+                jobs.append(Process(target=add_moveset_to_meta_matrix, args=(page_rank_matrix, moveset, cup)))
                 jobs[j].start()
             for p in range(min(num_processes, len(keys) - i)):
                 jobs[p].join()
@@ -74,7 +80,7 @@ def calculate_meta(cup: str, page_rank_matrix=None):
     old_order = [x[1] for x in old_order]
 
     i = 0
-    constant_rank_count = 0
+    # constant_rank_count = 0
     while True:
         i += 1
         control_vector = page_rank_matrix.dot(control_vector)
@@ -86,12 +92,16 @@ def calculate_meta(cup: str, page_rank_matrix=None):
             if old_order[j] != new_order[j]:
                 differences += 1
         old_order = new_order
-        if differences == 0:
-            constant_rank_count += 1
-            if constant_rank_count == 3:
-                break
-        else:
-            constant_rank_count = 0
+        # if differences == 0:
+        #     constant_rank_count += 1
+        #     if constant_rank_count == 3:
+        #         print("Constant Ranks!")
+        #         break
+        if i >= len(keys):
+            print(f"{len(keys)} tries!")
+            break
+        # else:
+        #     constant_rank_count = 0
 
     rankings = [(control_vector[i], keys[i]) for i in range(len(keys))]
     rankings.sort(reverse=False)
@@ -155,13 +165,17 @@ def calculate_meta(cup: str, page_rank_matrix=None):
     print("Done.\n")
 
 
-def add_moveset_to_meta_matrix(score_matrix, pr_matrix, moveset, keys):
+def add_moveset_to_meta_matrix(pr_matrix, moveset, cup):
+    with open(f"{cup}-dumped-data.json", 'rb') as f:
+        keys, score_matrix = load(f)
+
     score_list = []
     for ally in keys:
-        score = 0
+        score = 0.0
         for enemy in keys:
-            score += max(score_matrix[moveset][enemy], score_matrix[ally][enemy])
+            score += max(score_matrix[ally][enemy], score_matrix[moveset][enemy]) / 500.0
         score_list.append(score)
+
     pr_matrix[moveset] = score_list
 
 
@@ -231,14 +245,14 @@ def scale_ranking(rank, min_rank, max_rank):
     return round(100 - (rank - min_rank) * 100 / (max_rank - min_rank), 2)
 
 
-if __name__ == '__main__':
+def main():
     for cup in [
         'nightmare',
         'kingdom',
         'tempest',
         'twilight',
         'boulder',
-        'regionals'
+        # 'regionals'
     ]:
         try:
             conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
@@ -249,14 +263,38 @@ if __name__ == '__main__':
         except sqlite3.OperationalError:
             pass
 
+        calculate_meta(cup)
+
+
+if __name__ == '__main__':
+    # main()
+
+    for cup in [
+        'nightmare',
+        'kingdom',
+        'tempest',
+        'twilight',
+        'boulder',
+        # 'regionals'
+    ]:
+        # try:
+        #     conn = sqlite3.connect(f"{path}/data/databases/{cup}.db")
+        #     cur = conn.cursor()
+        #     cur.execute("DROP TABLE rankings")
+        #     conn.commit()
+        #     conn.close()
+        # except sqlite3.OperationalError:
+        #     pass
+        #
         # with open(f"{path}/data/{cup}_matrix.json", 'r') as f:
         #     matrix = np.core.multiarray.fromfile(f)
         # calculate_meta(cup, matrix)
-        calculate_meta(cup)
+        # calculate_meta(cup)
 
-        # for mon, score in ordered_top_pokemon(cup):
-        #     print(mon)
-        #     for moveset in ordered_movesets_for_pokemon(cup, mon):
-        #         print('\t' + str(moveset))
-        #     print()
-
+        for mon, score in ordered_top_pokemon(cup):
+            print(mon)
+            for moveset in ordered_movesets_for_pokemon(cup, mon):
+                print('\t' + str(moveset))
+            print()
+        print('-' * 20)
+        input()

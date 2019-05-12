@@ -1,2 +1,7 @@
 data/databases/ filter=lfs diff=lfs merge=lfs -text
+data/databases/tempest.db filter=lfs diff=lfs merge=lfs -text
+data/databases/test.db filter=lfs diff=lfs merge=lfs -text
+data/databases/twilight.db filter=lfs diff=lfs merge=lfs -text
+data/databases/boulder.db filter=lfs diff=lfs merge=lfs -text
+data/databases/kingdom.db filter=lfs diff=lfs merge=lfs -text
 data/databases/nightmare.db filter=lfs diff=lfs merge=lfs -text
